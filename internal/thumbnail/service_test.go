@@ -12,10 +12,10 @@ import (
 )
 
 func TestIsRaw(t *testing.T) {
-	if !IsRaw("a.ARW") || !IsRaw("b.cr3") || !IsRaw("c.nef") {
+	if !IsRaw("a.ARW") || !IsRaw("b.cr3") || !IsRaw("c.nef") || !IsRaw("d.heic") || !IsRaw("e.heif") || !IsRaw("f.hif") {
 		t.Fatal("expected raw extensions to be detected")
 	}
-	if IsRaw("d.jpg") {
+	if IsRaw("g.jpg") {
 		t.Fatal("jpg should not be raw")
 	}
 }
@@ -152,5 +152,41 @@ func TestWarmRawCachesPreviewAndThumbnail(t *testing.T) {
 	}
 	if _, err := jpeg.Decode(bytes.NewReader(data)); err != nil {
 		t.Fatalf("expected valid cached jpeg output: %v", err)
+	}
+}
+
+func TestGetTreatsHifAsRawViaPreviewer(t *testing.T) {
+	dir := t.TempDir()
+	rawPath := filepath.Join(dir, "sample.hif")
+	if err := os.WriteFile(rawPath, []byte("raw"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	src := image.NewRGBA(image.Rect(0, 0, 640, 480))
+	src.Set(0, 0, color.RGBA{0, 255, 0, 255})
+	var previewBuf bytes.Buffer
+	if err := jpeg.Encode(&previewBuf, src, &jpeg.Options{Quality: 90}); err != nil {
+		t.Fatal(err)
+	}
+
+	prev := &fakePreviewer{data: previewBuf.Bytes()}
+	svc := &Service{
+		cache:     NewDiskCache(dir),
+		previewer: prev,
+		memCache:  make(map[string]memEntry),
+	}
+
+	entry, data, err := svc.Get(context.Background(), rawPath, 128)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if prev.calls != 1 {
+		t.Fatalf("expected one preview extraction, got %d", prev.calls)
+	}
+	if entry.MimeType != "image/jpeg" {
+		t.Fatalf("expected jpeg mime, got %s", entry.MimeType)
+	}
+	if _, err := jpeg.Decode(bytes.NewReader(data)); err != nil {
+		t.Fatalf("expected valid jpeg output: %v", err)
 	}
 }

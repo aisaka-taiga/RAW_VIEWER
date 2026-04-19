@@ -698,6 +698,7 @@
       let selectedPreviewSrc = "";
       let selectedPreviewFromCache = false;
       let selectedPreviewSize = 0;
+      let selectionPreviewRequestId = 0;
       let viewerOpen = false;
       let photoList = [];
       let selectedIndex = -1;
@@ -753,6 +754,12 @@
 
       function isCancelledError(message) {
         return /CANCELLED/i.test(String(message ?? ""));
+      }
+
+      function swapImageSource(image, src) {
+        if (!image || !src) return;
+        image.removeAttribute("src");
+        image.src = src;
       }
 
       async function checkBackend() {
@@ -847,7 +854,7 @@
           selectedPhotoPath = card.dataset.photoPath || "";
           selectedIndex = index;
           void loadExif(id);
-          void loadSelectionPreview(id);
+          refreshSelectionPreview(id, selectedPhotoPath);
         }
       }
 
@@ -859,7 +866,15 @@
       }
 
       function isRawPath(filePath) {
-        return /\.(arw|cr3|nef|dng|rw2|heic|heif)$/i.test(filePath || "");
+        return /\.(arw|cr3|nef|dng|rw2|heic|heif|hif)$/i.test(filePath || "");
+      }
+
+      function refreshSelectionPreview(photoId, path) {
+        const requestId = ++selectionPreviewRequestId;
+        void loadSelectionPreview(photoId, requestId);
+        if (isRawPath(path)) {
+          void warmRawSelectionPreview(photoId, path, requestId);
+        }
       }
 
       async function openViewer(filePath, title) {
@@ -881,7 +896,7 @@
         warmAdjacentThumbnails(selectedIndex);
         
         // Cancel any ongoing large preview extractions for other photos
-        window.photoViewer.abortThumbnails();
+        window.photoViewer.abortThumbnails({ photoId: selectedPhotoId });
 
         if (isRawPath(filePath)) {
           loader.style.display = "flex";
@@ -889,8 +904,8 @@
 
           viewerTitle.textContent = `${title || filePath} (RAW preview)`;
           try {
-            if (selectedPreviewPhotoId === selectedPhotoId && selectedPreviewSrc) {
-              image.src = selectedPreviewSrc;
+            if (selectedPreviewPhotoId === selectedPhotoId && selectedPreviewSrc && selectedPreviewSize >= 1024) {
+              swapImageSource(image, selectedPreviewSrc);
               image.style.opacity = "1";
               addLog(`viewer RAW preview reused: ${selectedPhotoId} (${selectedPreviewFromCache ? "hit" : "generated"})`);
               return;
@@ -903,7 +918,7 @@
               selectedPreviewSrc = `data:${res.data.mimeType};base64,${res.data.base64}`;
               selectedPreviewFromCache = Boolean(res.data.fromCache);
               selectedPreviewSize = 1024;
-              image.src = selectedPreviewSrc;
+              swapImageSource(image, selectedPreviewSrc);
               image.style.opacity = "1";
               logThumbnailCache("viewer RAW preview", selectedPhotoId, 1024, selectedPreviewFromCache);
             }
@@ -924,7 +939,7 @@
       function closeViewer() {
         viewerToken += 1;
         // Kill backend processing immediately
-        window.photoViewer.abortThumbnails();
+        window.photoViewer.abortThumbnails({ photoId: selectedPhotoId });
         
         const viewer = document.getElementById("viewer");
         const image = document.getElementById("viewerImage");
@@ -953,7 +968,7 @@
         entries.forEach(entry => {
           if (entry.isIntersecting) {
             const card = entry.target;
-            hydrateThumbnails(card);
+            hydrateThumbnailCard(card);
             // We keep observing if we want to support dynamic reloading, 
             // but for now unobserve once triggered to save CPU.
             photoObserver.unobserve(card);
@@ -965,7 +980,7 @@
         threshold: 0.01
       });
 
-      async function hydrateThumbnails(card) {
+      async function hydrateThumbnailCard(card) {
         const photoId = card.dataset.photoId;
         const img = card.querySelector("img");
         if (!photoId || !img || img.dataset.loaded) return;
@@ -1027,6 +1042,7 @@
           card.classList.add("selected");
         }
         await openViewer(item.path, item.fileName ?? item.path);
+        refreshSelectionPreview(item.id, item.path);
         
         // Ensure the viewed photo is in the selection set so Delete/Shift+Delete works
         selectedIds.clear();
@@ -1034,6 +1050,15 @@
         updateSelectionUI();
         
         warmAdjacentThumbnails(index);
+      }
+
+      function selectPhotoByIndex(index) {
+        if (index < 0 || index >= photoList.length) return;
+        const item = photoList[index];
+        const card = document.querySelector(`.photo[data-photo-id="${CSS.escape(item.id)}"]`);
+        if (!card) return;
+        applyPhotoSelection(item.id, item.path);
+        card.scrollIntoView({ block: "nearest", inline: "nearest" });
       }
 
       async function loadPhotos() {
@@ -1071,7 +1096,7 @@
         exifList.innerHTML = rows || "<div class='muted'>표시할 EXIF가 없습니다.</div>";
       }
 
-      async function loadSelectionPreview(photoId) {
+      async function loadSelectionPreview(photoId, requestId = selectionPreviewRequestId) {
         if (!selectionPreview) return;
         if (selectedPreviewPhotoId === photoId && selectedPreviewSrc && selectedPreviewSize >= 384) {
           logThumbnailCache("selection preview", photoId, 384, true);
@@ -1091,11 +1116,17 @@
         selectedPreviewFromCache = false;
         selectedPreviewSize = 0;
         const res = await window.photoViewer.getThumbnail({ photoId, size: 384 });
+        if (requestId !== selectionPreviewRequestId || selectedPhotoId !== photoId) {
+          return;
+        }
+        if (selectedPreviewPhotoId === photoId && selectedPreviewSize > 384) {
+          return;
+        }
         if (res.ok) {
           selectedPreviewSrc = `data:${res.data.mimeType};base64,${res.data.base64}`;
           selectedPreviewFromCache = Boolean(res.data.fromCache);
           selectedPreviewSize = 384;
-          selectionPreview.src = selectedPreviewSrc;
+          swapImageSource(selectionPreview, selectedPreviewSrc);
           logThumbnailCache("selection preview", photoId, 384, selectedPreviewFromCache);
           
           // Histogram update
@@ -1111,17 +1142,25 @@
         }
       }
 
-      async function warmRawSelectionPreview(photoId, path) {
+      async function warmRawSelectionPreview(photoId, path, requestId = selectionPreviewRequestId) {
         if (!photoId || !isRawPath(path)) return;
         const sizes = [1024, 4096];
         addLog(`raw preview progress: ${photoId} 384 -> ${sizes.join(" -> ")}`, "info");
+        const requests = new Map(
+          sizes.map((size) => [
+            size,
+            window.photoViewer.getThumbnail({ photoId, size }),
+          ])
+        );
         for (const size of sizes) {
+          if (requestId !== selectionPreviewRequestId) return;
           if (selectedPhotoId !== photoId) return;
           if (selectedPreviewPhotoId === photoId && selectedPreviewSize >= size) {
             continue;
           }
           try {
-            const res = await window.photoViewer.getThumbnail({ photoId, size });
+            const res = await requests.get(size);
+            if (requestId !== selectionPreviewRequestId || selectedPhotoId !== photoId) return;
             if (selectedPhotoId !== photoId) return;
             if (!res.ok) {
               if (!isCancelledError(res.error)) {
@@ -1137,12 +1176,12 @@
             selectedPreviewFromCache = Boolean(res.data.fromCache);
             selectedPreviewSize = size;
             if (selectionPreview && isBetter && selectedPhotoId === photoId) {
-              selectionPreview.src = upgradedSrc;
+              swapImageSource(selectionPreview, upgradedSrc);
             }
             if (viewerOpen && selectedPhotoId === photoId) {
               const viewerImage = document.getElementById("viewerImage");
               if (viewerImage) {
-                viewerImage.src = upgradedSrc;
+                swapImageSource(viewerImage, upgradedSrc);
               }
             }
             logThumbnailCache("selection preview upgrade", photoId, size, selectedPreviewFromCache);
@@ -1153,11 +1192,6 @@
             }
           }
         }
-      }
-
-      async function scheduleRawSelectionPreviewUpgrade(photoId, path) {
-        await new Promise((resolve) => setTimeout(resolve, 120));
-        return warmRawSelectionPreview(photoId, path);
       }
 
       function updateHistogram(img) {
@@ -1229,35 +1263,51 @@
         });
       }
 
-      function selectPhoto(photoId, path) {
+      function applyPhotoSelection(photoId, path) {
         selectedIds.clear();
         selectedIds.add(photoId);
         selectedPhotoId = photoId;
         selectedPhotoPath = path;
+        const index = photoList.findIndex((item) => item.id === photoId);
+        if (index !== -1) {
+          selectedIndex = index;
+        }
         
         lastSelectedId = photoId;
         updateSelectionUI();
 
+        const hasUpgradedPreview =
+          selectedPreviewPhotoId === photoId &&
+          selectedPreviewSrc &&
+          selectedPreviewSize >= 1024;
+
         const card = document.querySelector(`.photo[data-photo-id="${CSS.escape(photoId)}"]`);
         const img = card?.querySelector("img");
-        if (img && img.dataset.loaded === "true" && img.src) {
+        if (hasUpgradedPreview) {
+          selectedPreviewPhotoId = photoId;
+          if (selectionPreview) swapImageSource(selectionPreview, selectedPreviewSrc);
+          logThumbnailCache("selection preview", photoId, selectedPreviewSize, selectedPreviewFromCache);
+          const tempImg = new Image();
+          tempImg.onload = () => updateHistogram(tempImg);
+          tempImg.src = selectedPreviewSrc;
+        } else if (img && img.dataset.loaded === "true" && img.src) {
           selectedPreviewPhotoId = photoId;
           selectedPreviewSrc = img.src;
           selectedPreviewFromCache = true;
           selectedPreviewSize = 384;
-          if (selectionPreview) selectionPreview.src = img.src;
+          if (selectionPreview) swapImageSource(selectionPreview, img.src);
           logThumbnailCache("selection preview", photoId, 384, true);
           const tempImg = new Image();
           tempImg.onload = () => updateHistogram(tempImg);
           tempImg.src = img.src;
-        } else {
-          void loadSelectionPreview(photoId);
         }
 
         void loadExif(photoId);
-        if (isRawPath(path)) {
-          void scheduleRawSelectionPreviewUpgrade(photoId, path);
-        }
+        refreshSelectionPreview(photoId, path);
+      }
+
+      function selectPhoto(photoId, path) {
+        applyPhotoSelection(photoId, path);
       }
 
       function handleMultiSelect(photoId, isShift, isCtrl) {
@@ -1296,7 +1346,7 @@
         updateSelectionUI();
         if (selectedPhotoId) {
           void loadExif(selectedPhotoId);
-          void loadSelectionPreview(selectedPhotoId);
+          refreshSelectionPreview(selectedPhotoId, selectedPhotoPath);
         }
       }
 
@@ -1701,7 +1751,7 @@
                 selectedPhotoId = lastId;
                 selectedPhotoPath = card.dataset.photoPath;
                 void loadExif(lastId);
-                void loadSelectionPreview(lastId);
+                refreshSelectionPreview(lastId, selectedPhotoPath);
             }
           }
         });
@@ -1795,12 +1845,22 @@
           if (event.code === "ArrowRight" && photoList.length) {
             event.preventDefault();
             const next = selectedIndex < 0 ? 0 : Math.min(selectedIndex + 1, photoList.length - 1);
-            void openViewerByIndex(next);
+            if (viewerOpen) {
+              void openViewerByIndex(next);
+            } else {
+              selectPhotoByIndex(next);
+            }
+            return;
           }
           if (event.code === "ArrowLeft" && photoList.length) {
             event.preventDefault();
             const prev = selectedIndex < 0 ? 0 : Math.max(selectedIndex - 1, 0);
-            void openViewerByIndex(prev);
+            if (viewerOpen) {
+              void openViewerByIndex(prev);
+            } else {
+              selectPhotoByIndex(prev);
+            }
+            return;
           }
           if (event.key === "Delete" || event.code === "Delete") {
             event.preventDefault();

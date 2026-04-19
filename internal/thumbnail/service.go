@@ -288,7 +288,7 @@ func encodeThumbnail(img image.Image, maxSize int) ([]byte, int, int, string, er
 
 func IsRaw(path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
-	case ".arw", ".cr3", ".nef", ".dng", ".rw2", ".heic", ".heif":
+	case ".arw", ".cr3", ".nef", ".dng", ".rw2", ".heic", ".heif", ".hif":
 		return true
 	default:
 		return false

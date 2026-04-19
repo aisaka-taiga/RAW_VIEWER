@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld("photoViewer", {
   deletePhoto: (request) => ipcRenderer.invoke("app:delete-photo", request),
   moveToRejected: (request) => ipcRenderer.invoke("app:move-to-rejected", request),
   getMetadata: (request) => ipcRenderer.invoke("app:get-metadata", request),
-  abortThumbnails: () => ipcRenderer.invoke("app:abort-thumbnails"),
+  abortThumbnails: (request) => ipcRenderer.invoke("app:abort-thumbnails", request),
   onScanProgress: (handler) => {
     ipcRenderer.on("app:scan-folder-progress", (_event, payload) => handler(payload));
   },

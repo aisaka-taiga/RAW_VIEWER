@@ -177,9 +177,16 @@ function createRpcBridge() {
     return Number.isFinite(size) ? size : 0;
   }
 
-  ipcMain.handle("app:abort-thumbnails", async () => {
+  function parseThumbnailPhotoId(callId) {
+    const idx = String(callId).lastIndexOf("_");
+    if (idx === -1) return "";
+    return String(callId).slice(0, idx);
+  }
+
+  ipcMain.handle("app:abort-thumbnails", async (_event, request = {}) => {
+    const keepPhotoId = request.photoId ?? "";
     activeThumbnailCalls.forEach((call, id) => {
-      if (parseThumbnailSize(id) >= 1024) {
+      if (parseThumbnailSize(id) >= 1024 && parseThumbnailPhotoId(id) !== keepPhotoId) {
         try { call.cancel(); } catch(e) {}
         activeThumbnailCalls.delete(id);
       }
