@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	pb "photo-viewer/gen"
@@ -31,8 +32,17 @@ type server struct {
 	prewarmChan chan string
 }
 
+func isHeifLikePath(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".heic", ".heif", ".hif":
+		return true
+	default:
+		return false
+	}
+}
+
 func (s *server) warmRawCache(ctx context.Context, path string) {
-	if s.thumbs == nil || !thumbnail.IsRaw(path) {
+	if s.thumbs == nil || !thumbnail.IsRaw(path) || isHeifLikePath(path) {
 		return
 	}
 	if err := s.thumbs.WarmRaw(ctx, path, 384, 1024, 4096); err != nil {
@@ -79,7 +89,7 @@ func (s *server) ScanFolderStream(req *pb.ScanFolderRequest, stream pb.PhotoEngi
 		return err
 	}
 	total := uint32(len(paths))
-	
+
 	for i, path := range paths {
 		if err := s.indexer.IndexFile(path); err != nil {
 			return err
@@ -160,15 +170,19 @@ var backgroundSemaphore chan struct{}
 func init() {
 	// Dynamically scale worker pool based on CPU cores
 	numCpus := runtime.NumCPU()
-	
+
 	// UI/Foreground limit
 	limit := numCpus * 2
-	if limit < 8 { limit = 8 }
+	if limit < 8 {
+		limit = 8
+	}
 	thumbSemaphore = make(chan struct{}, limit)
 
 	// Background/Pre-warm limit (slightly lower to prioritize UI)
-	bgLimit := numCpus 
-	if bgLimit < 4 { bgLimit = 4 }
+	bgLimit := numCpus
+	if bgLimit < 4 {
+		bgLimit = 4
+	}
 	backgroundSemaphore = make(chan struct{}, bgLimit)
 }
 
@@ -298,6 +312,10 @@ func main() {
 	for i := 0; i < numWorkers; i++ {
 		go func() {
 			for p := range s.prewarmChan {
+				if isHeifLikePath(p) {
+					// HEIF-family previews are handled by Electron, so skip backend warmup.
+					continue
+				}
 				// Use backgroundSemaphore to avoid blocking the UI
 				select {
 				case backgroundSemaphore <- struct{}{}:

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, nativeImage } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import grpc from "@grpc/grpc-js";
@@ -12,6 +12,11 @@ const packageDefinition = protoLoader.loadSync(protoPath, {
   oneofs: true,
 });
 const photoengine = grpc.loadPackageDefinition(packageDefinition).photoengine.v1;
+const heifLikeExtensions = new Set([".heic", ".heif", ".hif"]);
+
+function isHeifLikePath(filePath) {
+  return heifLikeExtensions.has(path.extname(String(filePath || "")).toLowerCase());
+}
 
 function createClient() {
   return new photoengine.PhotoEngine(
@@ -206,11 +211,32 @@ function createRpcBridge() {
       });
     }
 
+    const photoPath = String(request.photoId ?? "");
+    if (isHeifLikePath(photoPath)) {
+      try {
+        // Let the OS thumbnail pipeline decode HEIF-family images when available.
+        const size = Math.max(1, Number(request.size ?? 256) || 256);
+        const thumb = await nativeImage.createThumbnailFromPath(photoPath, { width: size, height: size });
+        if (!thumb.isEmpty()) {
+          return {
+            ok: true,
+            data: {
+              mimeType: "image/jpeg",
+              fromCache: false,
+              base64: thumb.toJPEG(90).toString("base64"),
+            },
+          };
+        }
+      } catch (error) {
+        console.warn(`[thumbnail] HEIF thumbnail fallback failed for ${photoPath}:`, String(error?.message ?? error));
+      }
+    }
+
     try {
       const res = await new Promise((resolve, reject) => {
         const call = client.GetThumbnail(
           {
-            photoId: request.photoId ?? "",
+            photoId: photoPath,
             size: request.size ?? 256,
           },
           (err, data) => {
