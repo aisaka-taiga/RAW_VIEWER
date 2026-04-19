@@ -1,4 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, nativeImage } from "electron";
+import { mkdir, readFile, stat, writeFile } from "fs/promises";
+import crypto from "crypto";
 import path from "path";
 import { fileURLToPath } from "url";
 import grpc from "@grpc/grpc-js";
@@ -13,9 +15,135 @@ const packageDefinition = protoLoader.loadSync(protoPath, {
 });
 const photoengine = grpc.loadPackageDefinition(packageDefinition).photoengine.v1;
 const heifLikeExtensions = new Set([".heic", ".heif", ".hif"]);
+const heifThumbnailHalfScale = 0.5;
+let heifThumbnailCacheRoot = "";
+const heifThumbnailInFlight = new Map();
 
 function isHeifLikePath(filePath) {
   return heifLikeExtensions.has(path.extname(String(filePath || "")).toLowerCase());
+}
+
+function heifThumbnailCacheKey(photoPath, variant, modTimeMs, fileSize) {
+  return crypto
+    .createHash("sha1")
+    .update(`${photoPath}|thumb:${variant}|${modTimeMs}|${fileSize}|v2`)
+    .digest("hex");
+}
+
+function heifThumbnailCachePath(key) {
+  return path.join(heifThumbnailCacheRoot, `${key}.jpg`);
+}
+
+function heifHalfSize(width, height) {
+  return {
+    width: Math.max(1, Math.round(Number(width || 0) * heifThumbnailHalfScale)),
+    height: Math.max(1, Math.round(Number(height || 0) * heifThumbnailHalfScale)),
+  };
+}
+
+async function createHeifThumbnailBytes(photoPath, width, height) {
+  const thumb = await nativeImage.createThumbnailFromPath(photoPath, { width, height });
+  if (thumb.isEmpty()) {
+    throw new Error(`empty thumbnail for ${photoPath}`);
+  }
+  return thumb.toJPEG(90);
+}
+
+async function loadOrCreateHeifCachedBytes(photoPath, variant, createBytes) {
+  const info = await stat(photoPath);
+  const key = heifThumbnailCacheKey(photoPath, variant, info.mtimeMs, info.size);
+  const existing = heifThumbnailInFlight.get(key);
+  if (existing) {
+    return existing;
+  }
+
+  const job = (async () => {
+    if (heifThumbnailCacheRoot) {
+      try {
+        const cached = await readFile(heifThumbnailCachePath(key));
+        return { data: cached, fromCache: true };
+      } catch (error) {
+        if (error?.code !== "ENOENT") {
+          throw error;
+        }
+      }
+    }
+
+    const data = await createBytes(info);
+    if (heifThumbnailCacheRoot) {
+      await mkdir(heifThumbnailCacheRoot, { recursive: true });
+      await writeFile(heifThumbnailCachePath(key), data);
+    }
+
+    return { data, fromCache: false };
+  })();
+
+  heifThumbnailInFlight.set(key, job);
+  try {
+    return await job;
+  } finally {
+    heifThumbnailInFlight.delete(key);
+  }
+}
+
+async function loadOrCreateHeifHalfThumbnail(photoPath, sourceWidth, sourceHeight) {
+  const { width, height } = heifHalfSize(sourceWidth, sourceHeight);
+  return loadOrCreateHeifCachedBytes(photoPath, "half", async () => {
+    if (width <= 0 || height <= 0) {
+      throw new Error(`missing source dimensions for ${photoPath}`);
+    }
+    return createHeifThumbnailBytes(photoPath, width, height);
+  });
+}
+
+async function loadOrCreateHeifSizedThumbnail(photoPath, size) {
+  const targetSize = Math.max(1, Number(size) || 256);
+  return loadOrCreateHeifCachedBytes(photoPath, `size:${targetSize}`, async () => {
+    return createHeifThumbnailBytes(photoPath, targetSize, targetSize);
+  });
+}
+
+async function downscaleHeifThumbnail(data, size) {
+  const targetSize = Math.max(1, Number(size) || 0);
+  if (!targetSize || !data?.length) {
+    return data;
+  }
+
+  const image = nativeImage.createFromBuffer(data);
+  if (image.isEmpty()) {
+    return data;
+  }
+
+  const current = image.getSize();
+  if (current.width <= targetSize && current.height <= targetSize) {
+    return data;
+  }
+
+  const resized = image.resize({ width: targetSize, height: targetSize });
+  if (resized.isEmpty()) {
+    return data;
+  }
+
+  return resized.toJPEG(90);
+}
+
+function warmHeifThumbnailCache(photo) {
+  const photoPath = photo?.path ?? "";
+  if (!isHeifLikePath(photoPath)) return;
+  const width = Number(photo?.width ?? 0) || 0;
+  const height = Number(photo?.height ?? 0) || 0;
+  if (width <= 0 || height <= 0) {
+    console.warn(
+      `[thumbnail] HEIF cache warm skipped for ${photoPath}: missing source dimensions`
+    );
+    return;
+  }
+  void loadOrCreateHeifHalfThumbnail(photoPath, width, height).catch((error) => {
+    console.warn(
+      `[thumbnail] HEIF cache warm failed for ${photoPath} (50%):`,
+      String(error?.message ?? error)
+    );
+  });
 }
 
 function createClient() {
@@ -115,6 +243,13 @@ function invokeGetMetadata(client, request) {
 }
 
 function createRpcBridge() {
+  heifThumbnailCacheRoot = path.join(app.getPath("userData"), "heif-thumbnail-cache");
+  void mkdir(heifThumbnailCacheRoot, { recursive: true }).catch((error) => {
+    console.warn(
+      `[thumbnail] failed to prepare HEIF cache directory ${heifThumbnailCacheRoot}:`,
+      String(error?.message ?? error)
+    );
+  });
   const client = createClient();
   ipcMain.handle("app:choose-folder", async () => {
     const result = await dialog.showOpenDialog({
@@ -148,6 +283,7 @@ function createRpcBridge() {
       await streamScanFolder(client, {
         folderPath: request.folderPath ?? "",
       }, (msg) => {
+        warmHeifThumbnailCache(msg.photo ?? null);
         event.sender.send("app:scan-folder-progress", {
           scanned: msg.scanned ?? 0,
           total: msg.total ?? 0,
@@ -214,16 +350,24 @@ function createRpcBridge() {
     const photoPath = String(request.photoId ?? "");
     if (isHeifLikePath(photoPath)) {
       try {
-        // Let the OS thumbnail pipeline decode HEIF-family images when available.
         const size = Math.max(1, Number(request.size ?? 256) || 256);
-        const thumb = await nativeImage.createThumbnailFromPath(photoPath, { width: size, height: size });
-        if (!thumb.isEmpty()) {
+        const sourceWidth = Math.max(0, Number(request.width ?? 0) || 0);
+        const sourceHeight = Math.max(0, Number(request.height ?? 0) || 0);
+        let cached = null;
+        if (sourceWidth > 0 && sourceHeight > 0) {
+          cached = await loadOrCreateHeifHalfThumbnail(photoPath, sourceWidth, sourceHeight);
+        }
+        if (!cached) {
+          cached = await loadOrCreateHeifSizedThumbnail(photoPath, size);
+        }
+        if (cached?.data?.length) {
+          const data = await downscaleHeifThumbnail(cached.data, size);
           return {
             ok: true,
             data: {
               mimeType: "image/jpeg",
-              fromCache: false,
-              base64: thumb.toJPEG(90).toString("base64"),
+              fromCache: Boolean(cached.fromCache),
+              base64: Buffer.from(data).toString("base64"),
             },
           };
         }

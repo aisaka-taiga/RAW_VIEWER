@@ -851,7 +851,7 @@
         // Update primary selection for preview
         if (selectedIds.has(id)) {
           selectedPhotoId = id;
-          selectedPhotoPath = card.dataset.photoPath || "";
+          selectedPhotoPath = card.dataset.path || "";
           selectedIndex = index;
           void loadExif(id);
           refreshSelectionPreview(id, selectedPhotoPath);
@@ -875,6 +875,14 @@
         if (isRawPath(path)) {
           void warmRawSelectionPreview(photoId, path, requestId);
         }
+      }
+
+      function getPhotoDimensions(photoId) {
+        const photo = photoList.find((item) => item.id === photoId);
+        return {
+          width: Number(photo?.width ?? 0) || 0,
+          height: Number(photo?.height ?? 0) || 0,
+        };
       }
 
       async function openViewer(filePath, title) {
@@ -911,7 +919,11 @@
               return;
             }
 
-            const res = await window.photoViewer.getThumbnail({ photoId: selectedPhotoId, size: 1024 });
+            const res = await window.photoViewer.getThumbnail({
+              photoId: selectedPhotoId,
+              size: 1024,
+              ...getPhotoDimensions(selectedPhotoId),
+            });
             if (token !== viewerToken) return;
             if (res.ok) {
               selectedPreviewPhotoId = selectedPhotoId;
@@ -986,7 +998,11 @@
         if (!photoId || !img || img.dataset.loaded) return;
         
         img.dataset.loaded = "loading";
-        const res = await window.photoViewer.getThumbnail({ photoId, size: 384 });
+        const res = await window.photoViewer.getThumbnail({
+          photoId,
+          size: 384,
+          ...getPhotoDimensions(photoId),
+        });
         if (res.ok) {
           img.src = `data:${res.data.mimeType};base64,${res.data.base64}`;
           img.dataset.loaded = "true";
@@ -1005,7 +1021,12 @@
             const item = photoList[targetIdx];
             if (!thumbnailWarmup.has(item.id + "_1024")) {
                 thumbnailWarmup.add(item.id + "_1024");
-                window.photoViewer.getThumbnail({ photoId: item.id, size: 1024 }).catch(() => {});
+                window.photoViewer.getThumbnail({
+                  photoId: item.id,
+                  size: 1024,
+                  width: Number(item.width ?? 0) || 0,
+                  height: Number(item.height ?? 0) || 0,
+                }).catch(() => {});
             }
           }
         });
@@ -1115,7 +1136,11 @@
         selectedPreviewSrc = "";
         selectedPreviewFromCache = false;
         selectedPreviewSize = 0;
-        const res = await window.photoViewer.getThumbnail({ photoId, size: 384 });
+        const res = await window.photoViewer.getThumbnail({
+          photoId,
+          size: 384,
+          ...getPhotoDimensions(photoId),
+        });
         if (requestId !== selectionPreviewRequestId || selectedPhotoId !== photoId) {
           return;
         }
@@ -1146,10 +1171,11 @@
         if (!photoId || !isRawPath(path)) return;
         const sizes = [1024, 4096];
         addLog(`raw preview progress: ${photoId} 384 -> ${sizes.join(" -> ")}`, "info");
+        const dims = getPhotoDimensions(photoId);
         const requests = new Map(
           sizes.map((size) => [
             size,
-            window.photoViewer.getThumbnail({ photoId, size }),
+            window.photoViewer.getThumbnail({ photoId, size, ...dims }),
           ])
         );
         for (const size of sizes) {
@@ -1386,7 +1412,11 @@
           
           img.dataset.loaded = "loading";
           try {
-            const res = await window.photoViewer.getThumbnail({ photoId, size: 384 });
+            const res = await window.photoViewer.getThumbnail({
+              photoId,
+              size: 384,
+              ...getPhotoDimensions(photoId),
+            });
             if (res.ok) {
               img.src = `data:${res.data.mimeType};base64,${res.data.base64}`;
               img.dataset.loaded = "true";
