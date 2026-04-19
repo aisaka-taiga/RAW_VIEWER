@@ -341,7 +341,8 @@ type PhotoItem struct {
 	Format        string                 `protobuf:"bytes,4,opt,name=format,proto3" json:"format,omitempty"`
 	Width         uint32                 `protobuf:"varint,5,opt,name=width,proto3" json:"width,omitempty"`
 	Height        uint32                 `protobuf:"varint,6,opt,name=height,proto3" json:"height,omitempty"`
-	CapturedAt    string                 `protobuf:"bytes,7,opt,name=captured_at,json=capturedAt,proto3" json:"captured_at,omitempty"`
+	Orientation   uint32                 `protobuf:"varint,7,opt,name=orientation,proto3" json:"orientation,omitempty"`
+	CapturedAt    string                 `protobuf:"bytes,8,opt,name=captured_at,json=capturedAt,proto3" json:"captured_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -414,6 +415,13 @@ func (x *PhotoItem) GetWidth() uint32 {
 func (x *PhotoItem) GetHeight() uint32 {
 	if x != nil {
 		return x.Height
+	}
+	return 0
+}
+
+func (x *PhotoItem) GetOrientation() uint32 {
+	if x != nil {
+		return x.Orientation
 	}
 	return 0
 }
@@ -1043,15 +1051,16 @@ const file_photo_engine_proto_rawDesc = "" +
 	"\asort_by\x18\x04 \x01(\tR\x06sortBy\x12\x1e\n" +
 	"\n" +
 	"descending\x18\x05 \x01(\bR\n" +
-	"descending\"\xb3\x01\n" +
+	"descending\"\xd5\x01\n" +
 	"\tPhotoItem\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04path\x18\x02 \x01(\tR\x04path\x12\x1b\n" +
 	"\tfile_name\x18\x03 \x01(\tR\bfileName\x12\x16\n" +
 	"\x06format\x18\x04 \x01(\tR\x06format\x12\x14\n" +
 	"\x05width\x18\x05 \x01(\rR\x05width\x12\x16\n" +
-	"\x06height\x18\x06 \x01(\rR\x06height\x12\x1f\n" +
-	"\vcaptured_at\x18\a \x01(\tR\n" +
+	"\x06height\x18\x06 \x01(\rR\x06height\x12 \n" +
+	"\vorientation\x18\a \x01(\rR\vorientation\x12\x1f\n" +
+	"\vcaptured_at\x18\b \x01(\tR\n" +
 	"capturedAt\"[\n" +
 	"\x12ListPhotosResponse\x12/\n" +
 	"\x05items\x18\x01 \x03(\v2\x19.photoengine.v1.PhotoItemR\x05items\x12\x14\n" +
@@ -1085,14 +1094,15 @@ const file_photo_engine_proto_rawDesc = "" +
 	"\x10current_photo_id\x18\x01 \x01(\tR\x0ecurrentPhotoId\x12\x14\n" +
 	"\x05count\x18\x02 \x01(\rR\x05count\"-\n" +
 	"\x13PreloadNextResponse\x12\x16\n" +
-	"\x06queued\x18\x01 \x01(\rR\x06queued2\xa1\x06\n" +
+	"\x06queued\x18\x01 \x01(\rR\x06queued2\xf5\x06\n" +
 	"\vPhotoEngine\x12G\n" +
 	"\x06Health\x12\x1d.photoengine.v1.HealthRequest\x1a\x1e.photoengine.v1.HealthResponse\x12S\n" +
 	"\n" +
 	"ScanFolder\x12!.photoengine.v1.ScanFolderRequest\x1a\".photoengine.v1.ScanFolderResponse\x12[\n" +
 	"\x10ScanFolderStream\x12!.photoengine.v1.ScanFolderRequest\x1a\".photoengine.v1.ScanFolderProgress0\x01\x12S\n" +
 	"\n" +
-	"ListPhotos\x12!.photoengine.v1.ListPhotosRequest\x1a\".photoengine.v1.ListPhotosResponse\x12Y\n" +
+	"ListPhotos\x12!.photoengine.v1.ListPhotosRequest\x1a\".photoengine.v1.ListPhotosResponse\x12R\n" +
+	"\x10ListPhotosStream\x12!.photoengine.v1.ListPhotosRequest\x1a\x19.photoengine.v1.PhotoItem0\x01\x12Y\n" +
 	"\fGetThumbnail\x12#.photoengine.v1.GetThumbnailRequest\x1a$.photoengine.v1.GetThumbnailResponse\x12V\n" +
 	"\vGetMetadata\x12\".photoengine.v1.GetMetadataRequest\x1a#.photoengine.v1.GetMetadataResponse\x12V\n" +
 	"\vDeletePhoto\x12\".photoengine.v1.DeletePhotoRequest\x1a#.photoengine.v1.DeletePhotoResponse\x12_\n" +
@@ -1141,22 +1151,24 @@ var file_photo_engine_proto_depIdxs = []int32{
 	2,  // 4: photoengine.v1.PhotoEngine.ScanFolder:input_type -> photoengine.v1.ScanFolderRequest
 	2,  // 5: photoengine.v1.PhotoEngine.ScanFolderStream:input_type -> photoengine.v1.ScanFolderRequest
 	5,  // 6: photoengine.v1.PhotoEngine.ListPhotos:input_type -> photoengine.v1.ListPhotosRequest
-	8,  // 7: photoengine.v1.PhotoEngine.GetThumbnail:input_type -> photoengine.v1.GetThumbnailRequest
-	10, // 8: photoengine.v1.PhotoEngine.GetMetadata:input_type -> photoengine.v1.GetMetadataRequest
-	13, // 9: photoengine.v1.PhotoEngine.DeletePhoto:input_type -> photoengine.v1.DeletePhotoRequest
-	15, // 10: photoengine.v1.PhotoEngine.MoveToRejected:input_type -> photoengine.v1.MoveToRejectedRequest
-	17, // 11: photoengine.v1.PhotoEngine.PreloadNext:input_type -> photoengine.v1.PreloadNextRequest
-	1,  // 12: photoengine.v1.PhotoEngine.Health:output_type -> photoengine.v1.HealthResponse
-	3,  // 13: photoengine.v1.PhotoEngine.ScanFolder:output_type -> photoengine.v1.ScanFolderResponse
-	4,  // 14: photoengine.v1.PhotoEngine.ScanFolderStream:output_type -> photoengine.v1.ScanFolderProgress
-	7,  // 15: photoengine.v1.PhotoEngine.ListPhotos:output_type -> photoengine.v1.ListPhotosResponse
-	9,  // 16: photoengine.v1.PhotoEngine.GetThumbnail:output_type -> photoengine.v1.GetThumbnailResponse
-	12, // 17: photoengine.v1.PhotoEngine.GetMetadata:output_type -> photoengine.v1.GetMetadataResponse
-	14, // 18: photoengine.v1.PhotoEngine.DeletePhoto:output_type -> photoengine.v1.DeletePhotoResponse
-	16, // 19: photoengine.v1.PhotoEngine.MoveToRejected:output_type -> photoengine.v1.MoveToRejectedResponse
-	18, // 20: photoengine.v1.PhotoEngine.PreloadNext:output_type -> photoengine.v1.PreloadNextResponse
-	12, // [12:21] is the sub-list for method output_type
-	3,  // [3:12] is the sub-list for method input_type
+	5,  // 7: photoengine.v1.PhotoEngine.ListPhotosStream:input_type -> photoengine.v1.ListPhotosRequest
+	8,  // 8: photoengine.v1.PhotoEngine.GetThumbnail:input_type -> photoengine.v1.GetThumbnailRequest
+	10, // 9: photoengine.v1.PhotoEngine.GetMetadata:input_type -> photoengine.v1.GetMetadataRequest
+	13, // 10: photoengine.v1.PhotoEngine.DeletePhoto:input_type -> photoengine.v1.DeletePhotoRequest
+	15, // 11: photoengine.v1.PhotoEngine.MoveToRejected:input_type -> photoengine.v1.MoveToRejectedRequest
+	17, // 12: photoengine.v1.PhotoEngine.PreloadNext:input_type -> photoengine.v1.PreloadNextRequest
+	1,  // 13: photoengine.v1.PhotoEngine.Health:output_type -> photoengine.v1.HealthResponse
+	3,  // 14: photoengine.v1.PhotoEngine.ScanFolder:output_type -> photoengine.v1.ScanFolderResponse
+	4,  // 15: photoengine.v1.PhotoEngine.ScanFolderStream:output_type -> photoengine.v1.ScanFolderProgress
+	7,  // 16: photoengine.v1.PhotoEngine.ListPhotos:output_type -> photoengine.v1.ListPhotosResponse
+	6,  // 17: photoengine.v1.PhotoEngine.ListPhotosStream:output_type -> photoengine.v1.PhotoItem
+	9,  // 18: photoengine.v1.PhotoEngine.GetThumbnail:output_type -> photoengine.v1.GetThumbnailResponse
+	12, // 19: photoengine.v1.PhotoEngine.GetMetadata:output_type -> photoengine.v1.GetMetadataResponse
+	14, // 20: photoengine.v1.PhotoEngine.DeletePhoto:output_type -> photoengine.v1.DeletePhotoResponse
+	16, // 21: photoengine.v1.PhotoEngine.MoveToRejected:output_type -> photoengine.v1.MoveToRejectedResponse
+	18, // 22: photoengine.v1.PhotoEngine.PreloadNext:output_type -> photoengine.v1.PreloadNextResponse
+	13, // [13:23] is the sub-list for method output_type
+	3,  // [3:13] is the sub-list for method input_type
 	3,  // [3:3] is the sub-list for extension type_name
 	3,  // [3:3] is the sub-list for extension extendee
 	0,  // [0:3] is the sub-list for field type_name

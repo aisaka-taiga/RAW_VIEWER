@@ -36,14 +36,19 @@ function invokeHealth(client) {
   });
 }
 
-function invokeListPhotos(client, request) {
+function streamListPhotos(client, request) {
   return new Promise((resolve, reject) => {
-    client.ListPhotos(request, (err, res) => {
-      if (err) {
-        reject(err);
-        return;
-      }
-      resolve(res);
+    const items = [];
+    const call = client.ListPhotosStream(request);
+    call.on("data", (msg) => {
+      items.push(msg);
+    });
+    call.on("error", reject);
+    call.on("end", () => {
+      resolve({
+        items,
+        total: items.length,
+      });
     });
   });
 }
@@ -151,7 +156,7 @@ function createRpcBridge() {
   });
   ipcMain.handle("app:list-photos", async (_event, request = {}) => {
     try {
-      const res = await invokeListPhotos(client, {
+      const res = await streamListPhotos(client, {
         folderPath: request.folderPath ?? "",
         limit: request.limit ?? 200,
         offset: request.offset ?? 0,

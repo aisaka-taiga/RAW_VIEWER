@@ -9,6 +9,7 @@ service PhotoEngine {
   rpc ScanFolder(ScanFolderRequest) returns (ScanFolderResponse);
   rpc ScanFolderStream(ScanFolderRequest) returns (stream ScanFolderProgress);
   rpc ListPhotos(ListPhotosRequest) returns (ListPhotosResponse);
+  rpc ListPhotosStream(ListPhotosRequest) returns (stream PhotoItem);
   rpc GetThumbnail(GetThumbnailRequest) returns (GetThumbnailResponse);
   rpc GetMetadata(GetMetadataRequest) returns (GetMetadataResponse);
   rpc DeletePhoto(DeletePhotoRequest) returns (DeletePhotoResponse);

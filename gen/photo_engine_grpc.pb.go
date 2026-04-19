@@ -23,6 +23,7 @@ const (
 	PhotoEngine_ScanFolder_FullMethodName       = "/photoengine.v1.PhotoEngine/ScanFolder"
 	PhotoEngine_ScanFolderStream_FullMethodName = "/photoengine.v1.PhotoEngine/ScanFolderStream"
 	PhotoEngine_ListPhotos_FullMethodName       = "/photoengine.v1.PhotoEngine/ListPhotos"
+	PhotoEngine_ListPhotosStream_FullMethodName = "/photoengine.v1.PhotoEngine/ListPhotosStream"
 	PhotoEngine_GetThumbnail_FullMethodName     = "/photoengine.v1.PhotoEngine/GetThumbnail"
 	PhotoEngine_GetMetadata_FullMethodName      = "/photoengine.v1.PhotoEngine/GetMetadata"
 	PhotoEngine_DeletePhoto_FullMethodName      = "/photoengine.v1.PhotoEngine/DeletePhoto"
@@ -38,6 +39,7 @@ type PhotoEngineClient interface {
 	ScanFolder(ctx context.Context, in *ScanFolderRequest, opts ...grpc.CallOption) (*ScanFolderResponse, error)
 	ScanFolderStream(ctx context.Context, in *ScanFolderRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ScanFolderProgress], error)
 	ListPhotos(ctx context.Context, in *ListPhotosRequest, opts ...grpc.CallOption) (*ListPhotosResponse, error)
+	ListPhotosStream(ctx context.Context, in *ListPhotosRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[PhotoItem], error)
 	GetThumbnail(ctx context.Context, in *GetThumbnailRequest, opts ...grpc.CallOption) (*GetThumbnailResponse, error)
 	GetMetadata(ctx context.Context, in *GetMetadataRequest, opts ...grpc.CallOption) (*GetMetadataResponse, error)
 	DeletePhoto(ctx context.Context, in *DeletePhotoRequest, opts ...grpc.CallOption) (*DeletePhotoResponse, error)
@@ -102,6 +104,25 @@ func (c *photoEngineClient) ListPhotos(ctx context.Context, in *ListPhotosReques
 	return out, nil
 }
 
+func (c *photoEngineClient) ListPhotosStream(ctx context.Context, in *ListPhotosRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[PhotoItem], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &PhotoEngine_ServiceDesc.Streams[1], PhotoEngine_ListPhotosStream_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ListPhotosRequest, PhotoItem]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type PhotoEngine_ListPhotosStreamClient = grpc.ServerStreamingClient[PhotoItem]
+
 func (c *photoEngineClient) GetThumbnail(ctx context.Context, in *GetThumbnailRequest, opts ...grpc.CallOption) (*GetThumbnailResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetThumbnailResponse)
@@ -160,6 +181,7 @@ type PhotoEngineServer interface {
 	ScanFolder(context.Context, *ScanFolderRequest) (*ScanFolderResponse, error)
 	ScanFolderStream(*ScanFolderRequest, grpc.ServerStreamingServer[ScanFolderProgress]) error
 	ListPhotos(context.Context, *ListPhotosRequest) (*ListPhotosResponse, error)
+	ListPhotosStream(*ListPhotosRequest, grpc.ServerStreamingServer[PhotoItem]) error
 	GetThumbnail(context.Context, *GetThumbnailRequest) (*GetThumbnailResponse, error)
 	GetMetadata(context.Context, *GetMetadataRequest) (*GetMetadataResponse, error)
 	DeletePhoto(context.Context, *DeletePhotoRequest) (*DeletePhotoResponse, error)
@@ -186,6 +208,9 @@ func (UnimplementedPhotoEngineServer) ScanFolderStream(*ScanFolderRequest, grpc.
 }
 func (UnimplementedPhotoEngineServer) ListPhotos(context.Context, *ListPhotosRequest) (*ListPhotosResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListPhotos not implemented")
+}
+func (UnimplementedPhotoEngineServer) ListPhotosStream(*ListPhotosRequest, grpc.ServerStreamingServer[PhotoItem]) error {
+	return status.Error(codes.Unimplemented, "method ListPhotosStream not implemented")
 }
 func (UnimplementedPhotoEngineServer) GetThumbnail(context.Context, *GetThumbnailRequest) (*GetThumbnailResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetThumbnail not implemented")
@@ -287,6 +312,17 @@ func _PhotoEngine_ListPhotos_Handler(srv interface{}, ctx context.Context, dec f
 	}
 	return interceptor(ctx, in, info, handler)
 }
+
+func _PhotoEngine_ListPhotosStream_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ListPhotosRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(PhotoEngineServer).ListPhotosStream(m, &grpc.GenericServerStream[ListPhotosRequest, PhotoItem]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type PhotoEngine_ListPhotosStreamServer = grpc.ServerStreamingServer[PhotoItem]
 
 func _PhotoEngine_GetThumbnail_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetThumbnailRequest)
@@ -422,6 +458,11 @@ var PhotoEngine_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "ScanFolderStream",
 			Handler:       _PhotoEngine_ScanFolderStream_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "ListPhotosStream",
+			Handler:       _PhotoEngine_ListPhotosStream_Handler,
 			ServerStreams: true,
 		},
 	},

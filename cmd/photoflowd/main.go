@@ -133,6 +133,27 @@ func (s *server) ListPhotos(ctx context.Context, req *pb.ListPhotosRequest) (*pb
 	return &pb.ListPhotosResponse{Items: items, Total: total}, nil
 }
 
+func (s *server) ListPhotosStream(req *pb.ListPhotosRequest, stream pb.PhotoEngine_ListPhotosStreamServer) error {
+	photos, _, err := s.store.ListPhotos(req.GetFolderPath(), req.GetLimit(), req.GetOffset(), req.GetSortBy(), req.GetDescending())
+	if err != nil {
+		return err
+	}
+	for _, p := range photos {
+		if err := stream.Send(&pb.PhotoItem{
+			Id:         p.ID,
+			Path:       p.Path,
+			FileName:   p.FileName,
+			Format:     p.Format,
+			Width:      uint32(p.Width),
+			Height:     uint32(p.Height),
+			CapturedAt: p.CapturedAt,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 var thumbSemaphore chan struct{}
 var backgroundSemaphore chan struct{}
 
