@@ -20,7 +20,15 @@ func NewDiskCache(root string) *DiskCache {
 }
 
 func (c *DiskCache) Key(path string, size int, modTime time.Time, fileSize int64) string {
-	sum := sha1.Sum([]byte(fmt.Sprintf("%s|%d|%d|%d|v5", path, size, modTime.UnixNano(), fileSize)))
+	return c.keyWithVariant(path, fmt.Sprintf("thumb:%d", size), modTime, fileSize)
+}
+
+func (c *DiskCache) RawPreviewKey(path string, modTime time.Time, fileSize int64) string {
+	return c.keyWithVariant(path, "raw-preview", modTime, fileSize)
+}
+
+func (c *DiskCache) keyWithVariant(path, variant string, modTime time.Time, fileSize int64) string {
+	sum := sha1.Sum([]byte(fmt.Sprintf("%s|%s|%d|%d|v6", path, variant, modTime.UnixNano(), fileSize)))
 	return hex.EncodeToString(sum[:])
 }
 

@@ -3,6 +3,7 @@ package thumbnail
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
@@ -76,6 +77,7 @@ func (s *Service) Get(ctx context.Context, path string, size int) (CacheEntry, [
 	s.memLock.Lock()
 	if m, ok := s.memCache[key]; ok {
 		s.memLock.Unlock()
+		m.entry.FromDisk = true
 		return m.entry, m.data, nil
 	}
 	s.memLock.Unlock()
@@ -98,7 +100,7 @@ func (s *Service) Get(ctx context.Context, path string, size int) (CacheEntry, [
 	if !IsRaw(path) {
 		img, err := ReadImage(path)
 		if err == nil && img != nil {
-			if ori, ok := readOrientation(path, s.exifToolPath); ok {
+			if ori := s.resolveOrientation(path); ori > 1 {
 				img = applyOrientation(img, ori)
 			}
 			data, width, height, _, err = encodeThumbnail(img, size)
@@ -106,43 +108,19 @@ func (s *Service) Get(ctx context.Context, path string, size int) (CacheEntry, [
 		} else if s.decoder != nil {
 			data, width, height, mimeType, err = DecodeAndResize(path, size, s.decoder)
 		}
-	} else if s.decoder != nil {
-		data, width, height, mimeType, err = DecodeAndResize(path, size, s.decoder)
 	} else {
-		data, err = s.previewer.GetPreviewBytes(ctx, path)
-		if err == nil && len(data) > 0 {
-			// Optimization: Check orientation FIRST from DB or ExifTool
-			ori := 1
-			if s.store != nil {
-				if p, err := s.store.GetPhoto(path); err == nil {
-					ori = p.Orientation
-				}
-			} else {
-				if o, ok := readOrientation(path, s.exifToolPath); ok {
-					ori = o
-				}
+		previewBytes, previewErr := s.loadRawPreviewBytes(ctx, path, info)
+		if previewErr == nil && len(previewBytes) > 0 {
+			data, width, height, mimeType, err = s.renderThumbnailFromPreviewBytes(path, size, previewBytes)
+			if err != nil && s.decoder != nil {
+				data, width, height, mimeType, err = DecodeAndResize(path, size, s.decoder)
 			}
-
-			if ori <= 1 {
-				// Super Fast Path: Orientation is normal (1), set values and move to cache save
-				mimeType = "image/jpeg"
-				width, height = 0, 0 // Client handles display
-			} else {
-				// If orientation is not 1, we must decode it to apply rotation
-				if img, _, decodeErr := image.Decode(bytes.NewReader(data)); decodeErr == nil && img != nil {
-					if ori > 1 {
-						img = applyOrientation(img, ori)
-						data, width, height, _, err = encodeThumbnail(img, size)
-					} else {
-						b := img.Bounds()
-						width, height = b.Dx(), b.Dy()
-					}
-					mimeType = "image/jpeg"
-				} else {
-					width, height = 0, 0
-					mimeType = http.DetectContentType(data)
-				}
-			}
+		} else if s.decoder != nil {
+			data, width, height, mimeType, err = DecodeAndResize(path, size, s.decoder)
+		} else if previewErr != nil {
+			err = previewErr
+		} else {
+			err = fmt.Errorf("empty raw preview for %s", path)
 		}
 	}
 	if err != nil {
@@ -160,6 +138,126 @@ func (s *Service) Get(ctx context.Context, path string, size int) (CacheEntry, [
 	}
 	s.addToMem(key, entry, data)
 	return entry, data, nil
+}
+
+func (s *Service) WarmRaw(ctx context.Context, path string, sizes ...int) error {
+	if !IsRaw(path) {
+		return nil
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+
+	previewBytes, err := s.loadRawPreviewBytes(ctx, path, info)
+	if err != nil {
+		return err
+	}
+	if len(previewBytes) == 0 {
+		return fmt.Errorf("empty raw preview for %s", path)
+	}
+
+	for _, size := range normalizeWarmSizes(sizes...) {
+		key := s.cache.Key(path, size, info.ModTime(), info.Size())
+		if _, ok, err := s.cache.Load(key); err != nil {
+			return err
+		} else if ok {
+			continue
+		}
+
+		data, width, height, mimeType, err := s.renderThumbnailFromPreviewBytes(path, size, previewBytes)
+		if err != nil {
+			return err
+		}
+		saved, err := s.cache.Save(key, data)
+		if err != nil {
+			return err
+		}
+		entry := CacheEntry{
+			Key: key, Path: saved, FromDisk: false, Width: width, Height: height, MimeType: mimeType,
+		}
+		s.addToMem(key, entry, data)
+	}
+
+	return nil
+}
+
+func (s *Service) loadRawPreviewBytes(ctx context.Context, path string, info os.FileInfo) ([]byte, error) {
+	if s.previewer == nil {
+		return nil, fmt.Errorf("raw previewer unavailable for %s", path)
+	}
+	previewKey := s.cache.RawPreviewKey(path, info.ModTime(), info.Size())
+	if data, ok, err := s.cache.Load(previewKey); err != nil {
+		return nil, err
+	} else if ok {
+		return data, nil
+	}
+
+	data, err := s.previewer.GetPreviewBytes(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) == 0 {
+		return nil, fmt.Errorf("empty raw preview for %s", path)
+	}
+	if _, err := s.cache.Save(previewKey, data); err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+func (s *Service) renderThumbnailFromPreviewBytes(path string, size int, previewBytes []byte) ([]byte, int, int, string, error) {
+	img, _, decodeErr := image.Decode(bytes.NewReader(previewBytes))
+	if decodeErr != nil {
+		return nil, 0, 0, "", decodeErr
+	}
+
+	if ori := s.resolveOrientation(path); ori > 1 {
+		img = applyOrientation(img, ori)
+	}
+
+	data, width, height, mimeType, err := encodeThumbnail(img, size)
+	if err != nil {
+		return nil, 0, 0, "", err
+	}
+	if mimeType == "" {
+		mimeType = http.DetectContentType(data)
+	}
+	return data, width, height, mimeType, nil
+}
+
+func (s *Service) resolveOrientation(path string) int {
+	if s.store != nil {
+		if p, err := s.store.GetPhoto(path); err == nil && p.Orientation > 0 {
+			return p.Orientation
+		}
+	}
+	if o, ok := readOrientation(path, s.exifToolPath); ok {
+		return o
+	}
+	return 1
+}
+
+func normalizeWarmSizes(sizes ...int) []int {
+	if len(sizes) == 0 {
+		return []int{384, 1024}
+	}
+	seen := make(map[int]struct{}, len(sizes))
+	out := make([]int, 0, len(sizes))
+	for _, size := range sizes {
+		if size <= 0 {
+			continue
+		}
+		if _, ok := seen[size]; ok {
+			continue
+		}
+		seen[size] = struct{}{}
+		out = append(out, size)
+	}
+	if len(out) == 0 {
+		return []int{384, 1024}
+	}
+	return out
 }
 
 func (s *Service) addToMem(key string, entry CacheEntry, data []byte) {

@@ -669,7 +669,7 @@
            <img id="viewerImage" class="viewer-image" alt="" />
            <div id="viewerLoader" class="viewer-loader">
              <div class="spinner"></div>
-             <span>Processing RAW...</span>
+             <span>Loading RAW preview...</span>
            </div>
          </div>
       </div>
@@ -694,6 +694,9 @@
       const logList = document.getElementById("logList");
       let selectedPhotoId = "";
       let selectedPhotoPath = "";
+      let selectedPreviewPhotoId = "";
+      let selectedPreviewSrc = "";
+      let selectedPreviewFromCache = false;
       let viewerOpen = false;
       let photoList = [];
       let selectedIndex = -1;
@@ -742,6 +745,10 @@
         origError(...args);
         addLog(args.map((v) => (typeof v === "string" ? v : JSON.stringify(v))).join(" "), "error");
       };
+
+      function logThumbnailCache(scope, photoId, size, fromCache) {
+        addLog(`${scope} thumbnail cache ${fromCache ? "hit" : "miss"}: ${photoId} (${size}px)`);
+      }
 
       async function checkBackend() {
         try {
@@ -873,17 +880,26 @@
 
         if (isRawPath(filePath)) {
           loader.style.display = "flex";
-          // If there's an existing image, we might want to keep it or dim it? 
-          // Let's dim it to show it's loading the full version
           image.style.opacity = "0.3"; 
 
           viewerTitle.textContent = `${title || filePath} (RAW preview)`;
           try {
-            const res = await window.photoViewer.getThumbnail({ photoId: selectedPhotoId, size: 4096 });
+            if (selectedPreviewPhotoId === selectedPhotoId && selectedPreviewSrc) {
+              image.src = selectedPreviewSrc;
+              image.style.opacity = "1";
+              addLog(`viewer RAW preview reused: ${selectedPhotoId} (${selectedPreviewFromCache ? "hit" : "generated"})`);
+              return;
+            }
+
+            const res = await window.photoViewer.getThumbnail({ photoId: selectedPhotoId, size: 1024 });
             if (token !== viewerToken) return;
             if (res.ok) {
-              image.src = `data:${res.data.mimeType};base64,${res.data.base64}`;
+              selectedPreviewPhotoId = selectedPhotoId;
+              selectedPreviewSrc = `data:${res.data.mimeType};base64,${res.data.base64}`;
+              selectedPreviewFromCache = Boolean(res.data.fromCache);
+              image.src = selectedPreviewSrc;
               image.style.opacity = "1";
+              logThumbnailCache("viewer RAW preview", selectedPhotoId, 1024, selectedPreviewFromCache);
             }
           } finally {
             if (token === viewerToken) {
@@ -960,15 +976,15 @@
       }
 
       function warmAdjacentThumbnails(index) {
-        // Pre-warm previews (4096) for next 3 and previous 1 photos
+        // Pre-warm viewer-sized cached previews for nearby photos
         const range = [1, 2, 3, -1]; 
         range.forEach(offset => {
           const targetIdx = index + offset;
           if (targetIdx >= 0 && targetIdx < photoList.length) {
             const item = photoList[targetIdx];
-            if (!thumbnailWarmup.has(item.id + "_4096")) {
-                thumbnailWarmup.add(item.id + "_4096");
-                window.photoViewer.getThumbnail({ photoId: item.id, size: 4096 }).catch(() => {});
+            if (!thumbnailWarmup.has(item.id + "_1024")) {
+                thumbnailWarmup.add(item.id + "_1024");
+                window.photoViewer.getThumbnail({ photoId: item.id, size: 1024 }).catch(() => {});
             }
           }
         });
@@ -1053,20 +1069,29 @@
         if (!selectionPreview) return;
         if (!photoId) {
           selectionPreview.src = placeholderThumb;
+          selectedPreviewPhotoId = "";
+          selectedPreviewSrc = "";
+          selectedPreviewFromCache = false;
           return;
         }
         selectionPreview.src = placeholderThumb;
+        selectedPreviewPhotoId = photoId;
+        selectedPreviewSrc = "";
+        selectedPreviewFromCache = false;
         const res = await window.photoViewer.getThumbnail({ photoId, size: 1024 });
         if (res.ok) {
-          selectionPreview.src = `data:${res.data.mimeType};base64,${res.data.base64}`;
-          addLog(`selection preview loaded: ${photoId}`);
+          selectedPreviewSrc = `data:${res.data.mimeType};base64,${res.data.base64}`;
+          selectedPreviewFromCache = Boolean(res.data.fromCache);
+          selectionPreview.src = selectedPreviewSrc;
+          logThumbnailCache("selection preview", photoId, 1024, selectedPreviewFromCache);
           
           // Histogram update
           const tempImg = new Image();
           tempImg.onload = () => updateHistogram(tempImg);
-          tempImg.src = selectionPreview.src;
+          tempImg.src = selectedPreviewSrc;
         } else {
           selectionPreview.src = placeholderThumb;
+          selectedPreviewSrc = "";
           addLog(`selection preview failed: ${photoId} - ${res.error}`, "warn");
         }
       }
@@ -1234,6 +1259,7 @@
               img.src = `data:${res.data.mimeType};base64,${res.data.base64}`;
               img.dataset.loaded = "true";
               img.style.opacity = "1";
+              logThumbnailCache("grid", photoId, 384, Boolean(res.data.fromCache));
             } else {
               img.dataset.loaded = "";
             }

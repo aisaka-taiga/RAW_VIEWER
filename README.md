@@ -1,54 +1,87 @@
 # Photo Viewer MVP
 
-Go gRPC 엔진과 Electron 데스크톱 셸로 구성된 사진 뷰어 MVP입니다.
+Go 기반 gRPC 서버와 Electron 데스크톱 앱으로 이루어진 사진 뷰어 MVP입니다.
 
-## 현재 구조
+## 구성
 
 - `cmd/photoflowd`: Go gRPC 서버
 - `proto/photo_engine.proto`: gRPC API 정의
 - `apps/desktop`: Electron 데스크톱 앱
 
-## proto 생성
+## 실행 전 준비
 
-`protoc`가 설치되어 있으면 아래 명령으로 Go 코드를 생성할 수 있습니다.
+- Go 1.23.5 이상
+- Node.js와 npm
+- `exiftool`
+- `protoc`
+- `protoc-gen-go`, `protoc-gen-go-grpc`
+
+`exiftool`이 PATH에 없으면 서버 실행 시 `--exiftool-path`에 전체 경로를 넣어야 합니다.
+
+## 1. proto 코드 생성
+
+`proto/photo_engine.proto`를 수정했다면 프로젝트 루트에서 아래 스크립트를 실행합니다.
 
 ```powershell
 .\scripts\gen-proto.ps1
 ```
 
-생성 결과는 `gen/` 아래에 만들어집니다.
+생성 결과는 `gen/` 아래에 들어갑니다.
 
-## Electron 데스크톱 앱
+## 2. Go gRPC 서버 실행
 
-Electron 셸은 `apps/desktop`에 있습니다.
+서버는 기본적으로 `127.0.0.1:50051`에서 대기합니다. Electron 앱도 이 주소로 고정 연결하므로, 서버와 앱은 같은 주소를 사용해야 합니다.
 
-의존성 설치:
+기본값은 아래와 같습니다.
+
+- 사진 폴더: `C:\Photos`
+- 캐시 폴더: `data/thumbs`
+- SQLite 파일: `data/app.db`
+
+프로젝트 루트에서 서버를 실행합니다.
 
 ```powershell
-cd apps\desktop
-npm install
+cd "<프로젝트 루트>"
+$env:GOCACHE = Join-Path $PWD ".gocache"
+$env:GOMODCACHE = Join-Path $PWD ".gomodcache"
+& "C:\Program Files\Go\bin\go.exe" run ./cmd/photoflowd `
+  --library-root "C:\Photos" `
+  --cache-dir "data/thumbs" `
+  --exiftool-path "C:\exiftool-13.57_64\exiftool(-k).exe" `
+  --sqlite-path "data/app.db" `
+  --listen "127.0.0.1:50051"
 ```
 
-앱 실행:
+`--library-root`는 실제 사진이 있는 폴더로 바꿔 주세요. `--exiftool-path`도 본인 PC의 실제 경로로 바꿔 주세요. PATH에 등록돼 있으면 `exiftool`만 써도 됩니다.
+
+## 3. Electron 앱 실행
+
+별도 터미널에서 데스크톱 앱을 실행합니다.
 
 ```powershell
+cd "<프로젝트 루트>\apps\desktop"
+npm install
 npm start
 ```
 
-메인 프로세스는 `127.0.0.1:50051`의 Go gRPC 백엔드에 연결합니다.
-따라서 먼저 `photoflowd`를 실행해야 합니다.
+서버가 먼저 실행 중이어야 앱이 정상 동작합니다.
 
-## 다음 단계
+PowerShell에서 `npm`이 `npm.ps1`로 실행되며 막히면 아래 중 하나를 사용합니다.
 
-gRPC API를 Electron 렌더러에 연결해 실제 사진 목록과 썸네일 그리드를 표시하고, Go 쪽에는 대량 인덱싱과 프리로드 작업을 더 붙입니다.
+```powershell
+npm.cmd install
+npm.cmd start
+```
 
+또는 현재 사용자 범위에서 한 번만 정책을 완화할 수 있습니다.
 
-cd "C:\Users\KURISU\Documents\New project"
-$env:GOCACHE=Join-Path $PWD '.gocache'
-$env:GOMODCACHE=Join-Path $PWD '.gomodcache'
-& 'C:\Program Files\Go\bin\go.exe' run .\cmd\photoflowd `
-  --library-root "C:\workspace\photos" `
-  --cache-dir "C:\Users\KURISU\Documents\New project\data\thumbs" `
-  --exiftool-path "C:\workspace\exiftool-13.55_64\exiftool(-k).exe" `
-  --sqlite-path "C:\Users\KURISU\Documents\New project\data\app.db" `
-  --listen "127.0.0.1:50051"
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+## 실행 순서 요약
+
+1. 필요하면 `.\scripts\gen-proto.ps1`로 proto를 다시 생성합니다.
+2. Go 서버를 실행합니다.
+3. Electron 앱을 실행합니다.
+4. 앱에서 사진 폴더를 스캔합니다.

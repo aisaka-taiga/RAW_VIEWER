@@ -31,6 +31,15 @@ type server struct {
 	prewarmChan chan string
 }
 
+func (s *server) warmRawCache(ctx context.Context, path string) {
+	if s.thumbs == nil || !thumbnail.IsRaw(path) {
+		return
+	}
+	if err := s.thumbs.WarmRaw(ctx, path, 384, 1024); err != nil {
+		log.Printf("raw warm cache skipped for %s: %v", path, err)
+	}
+}
+
 func (s *server) Health(ctx context.Context, req *pb.HealthRequest) (*pb.HealthResponse, error) {
 	return &pb.HealthResponse{Ok: true, Version: "0.1.0"}, nil
 }
@@ -44,6 +53,11 @@ func (s *server) ScanFolder(ctx context.Context, req *pb.ScanFolderRequest) (*pb
 	if err := library.Walk(root, func(path string) error {
 		if err := s.indexer.IndexFile(path); err != nil {
 			return err
+		}
+		s.warmRawCache(ctx, path)
+		select {
+		case s.prewarmChan <- path:
+		default:
 		}
 		queued++
 		return nil
@@ -71,6 +85,7 @@ func (s *server) ScanFolderStream(req *pb.ScanFolderRequest, stream pb.PhotoEngi
 		if err := s.indexer.IndexFile(path); err != nil {
 			return err
 		}
+		s.warmRawCache(stream.Context(), path)
 		// Send to persistent background prewarmer queue
 		select {
 		case s.prewarmChan <- path:
@@ -267,8 +282,14 @@ func main() {
 				// Use backgroundSemaphore to avoid blocking the UI
 				select {
 				case backgroundSemaphore <- struct{}{}:
-					// During scan, ONLY pre-warm small thumbnails to keep CPU usage sane
-					s.thumbs.Get(context.Background(), p, 384)
+					if thumbnail.IsRaw(p) {
+						if err := s.thumbs.WarmRaw(context.Background(), p, 384, 1024); err != nil {
+							log.Printf("background raw warm failed for %s: %v", p, err)
+						}
+					} else {
+						// During scan, only warm the grid thumbnail to keep CPU usage sane.
+						s.thumbs.Get(context.Background(), p, 384)
+					}
 					<-backgroundSemaphore
 				case <-time.After(1 * time.Second):
 					// Skip if backend is too busy

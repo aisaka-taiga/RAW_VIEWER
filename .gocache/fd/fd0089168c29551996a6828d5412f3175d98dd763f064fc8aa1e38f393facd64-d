@@ -1,4 +1,0 @@
-=== RUN   TestCacheRoundTrip
---- PASS: TestCacheRoundTrip (0.00s)
-PASS
-ok  	photo-viewer/internal/thumbnail	0.242s
