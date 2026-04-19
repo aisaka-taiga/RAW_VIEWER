@@ -1114,6 +1114,7 @@
       async function warmRawSelectionPreview(photoId, path) {
         if (!photoId || !isRawPath(path)) return;
         const sizes = [1024, 4096];
+        addLog(`raw preview progress: ${photoId} 384 -> ${sizes.join(" -> ")}`, "info");
         for (const size of sizes) {
           if (selectedPhotoId !== photoId) return;
           if (selectedPreviewPhotoId === photoId && selectedPreviewSize >= size) {
@@ -1124,7 +1125,7 @@
             if (selectedPhotoId !== photoId) return;
             if (!res.ok) {
               if (!isCancelledError(res.error)) {
-                addLog(`raw preview upgrade failed: ${photoId} - ${res.error}`, "warn");
+                addLog(`raw preview upgrade failed: ${photoId} (${size}px) - ${res.error}`, "warn");
               }
               continue;
             }
@@ -1145,9 +1146,10 @@
               }
             }
             logThumbnailCache("selection preview upgrade", photoId, size, selectedPreviewFromCache);
+            addLog(`raw preview stage complete: ${photoId} (${size}px)`, "info");
           } catch (error) {
             if (!isCancelledError(error?.message ?? String(error))) {
-              addLog(`raw preview upgrade error: ${photoId} - ${error?.message ?? String(error)}`, "warn");
+              addLog(`raw preview upgrade error: ${photoId} (${size}px) - ${error?.message ?? String(error)}`, "warn");
             }
           }
         }
