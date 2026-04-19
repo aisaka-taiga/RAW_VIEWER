@@ -165,11 +165,20 @@ function createRpcBridge() {
   });
   const activeThumbnailCalls = new Map();
 
+  function parseThumbnailSize(callId) {
+    const idx = String(callId).lastIndexOf("_");
+    if (idx === -1) return 0;
+    const size = Number(String(callId).slice(idx + 1));
+    return Number.isFinite(size) ? size : 0;
+  }
+
   ipcMain.handle("app:abort-thumbnails", async () => {
     activeThumbnailCalls.forEach((call, id) => {
-      try { call.cancel(); } catch(e) {}
+      if (parseThumbnailSize(id) >= 1024) {
+        try { call.cancel(); } catch(e) {}
+        activeThumbnailCalls.delete(id);
+      }
     });
-    activeThumbnailCalls.clear();
     return { ok: true };
   });
 

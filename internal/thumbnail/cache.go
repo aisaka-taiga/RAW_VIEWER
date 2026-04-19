@@ -23,8 +23,8 @@ func (c *DiskCache) Key(path string, size int, modTime time.Time, fileSize int64
 	return c.keyWithVariant(path, fmt.Sprintf("thumb:%d", size), modTime, fileSize)
 }
 
-func (c *DiskCache) RawPreviewKey(path string, modTime time.Time, fileSize int64) string {
-	return c.keyWithVariant(path, "raw-preview", modTime, fileSize)
+func (c *DiskCache) RawPreviewKey(path string, size int, modTime time.Time, fileSize int64) string {
+	return c.keyWithVariant(path, fmt.Sprintf("raw-preview:%d", size), modTime, fileSize)
 }
 
 func (c *DiskCache) keyWithVariant(path, variant string, modTime time.Time, fileSize int64) string {

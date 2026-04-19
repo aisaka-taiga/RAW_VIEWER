@@ -35,7 +35,7 @@ func (s *server) warmRawCache(ctx context.Context, path string) {
 	if s.thumbs == nil || !thumbnail.IsRaw(path) {
 		return
 	}
-	if err := s.thumbs.WarmRaw(ctx, path, 384, 1024); err != nil {
+	if err := s.thumbs.WarmRaw(ctx, path, 384, 1024, 4096); err != nil {
 		log.Printf("raw warm cache skipped for %s: %v", path, err)
 	}
 }
@@ -54,7 +54,6 @@ func (s *server) ScanFolder(ctx context.Context, req *pb.ScanFolderRequest) (*pb
 		if err := s.indexer.IndexFile(path); err != nil {
 			return err
 		}
-		s.warmRawCache(ctx, path)
 		select {
 		case s.prewarmChan <- path:
 		default:
@@ -85,7 +84,6 @@ func (s *server) ScanFolderStream(req *pb.ScanFolderRequest, stream pb.PhotoEngi
 		if err := s.indexer.IndexFile(path); err != nil {
 			return err
 		}
-		s.warmRawCache(stream.Context(), path)
 		// Send to persistent background prewarmer queue
 		select {
 		case s.prewarmChan <- path:
@@ -283,7 +281,7 @@ func main() {
 				select {
 				case backgroundSemaphore <- struct{}{}:
 					if thumbnail.IsRaw(p) {
-						if err := s.thumbs.WarmRaw(context.Background(), p, 384, 1024); err != nil {
+						if err := s.thumbs.WarmRaw(context.Background(), p, 384, 1024, 4096); err != nil {
 							log.Printf("background raw warm failed for %s: %v", p, err)
 						}
 					} else {

@@ -697,6 +697,7 @@
       let selectedPreviewPhotoId = "";
       let selectedPreviewSrc = "";
       let selectedPreviewFromCache = false;
+      let selectedPreviewSize = 0;
       let viewerOpen = false;
       let photoList = [];
       let selectedIndex = -1;
@@ -748,6 +749,10 @@
 
       function logThumbnailCache(scope, photoId, size, fromCache) {
         addLog(`${scope} thumbnail cache ${fromCache ? "hit" : "miss"}: ${photoId} (${size}px)`);
+      }
+
+      function isCancelledError(message) {
+        return /CANCELLED/i.test(String(message ?? ""));
       }
 
       async function checkBackend() {
@@ -897,6 +902,7 @@
               selectedPreviewPhotoId = selectedPhotoId;
               selectedPreviewSrc = `data:${res.data.mimeType};base64,${res.data.base64}`;
               selectedPreviewFromCache = Boolean(res.data.fromCache);
+              selectedPreviewSize = 1024;
               image.src = selectedPreviewSrc;
               image.style.opacity = "1";
               logThumbnailCache("viewer RAW preview", selectedPhotoId, 1024, selectedPreviewFromCache);
@@ -1067,23 +1073,30 @@
 
       async function loadSelectionPreview(photoId) {
         if (!selectionPreview) return;
+        if (selectedPreviewPhotoId === photoId && selectedPreviewSrc && selectedPreviewSize >= 384) {
+          logThumbnailCache("selection preview", photoId, 384, true);
+          return;
+        }
         if (!photoId) {
           selectionPreview.src = placeholderThumb;
           selectedPreviewPhotoId = "";
           selectedPreviewSrc = "";
           selectedPreviewFromCache = false;
+          selectedPreviewSize = 0;
           return;
         }
         selectionPreview.src = placeholderThumb;
         selectedPreviewPhotoId = photoId;
         selectedPreviewSrc = "";
         selectedPreviewFromCache = false;
-        const res = await window.photoViewer.getThumbnail({ photoId, size: 1024 });
+        selectedPreviewSize = 0;
+        const res = await window.photoViewer.getThumbnail({ photoId, size: 384 });
         if (res.ok) {
           selectedPreviewSrc = `data:${res.data.mimeType};base64,${res.data.base64}`;
           selectedPreviewFromCache = Boolean(res.data.fromCache);
+          selectedPreviewSize = 384;
           selectionPreview.src = selectedPreviewSrc;
-          logThumbnailCache("selection preview", photoId, 1024, selectedPreviewFromCache);
+          logThumbnailCache("selection preview", photoId, 384, selectedPreviewFromCache);
           
           // Histogram update
           const tempImg = new Image();
@@ -1092,8 +1105,57 @@
         } else {
           selectionPreview.src = placeholderThumb;
           selectedPreviewSrc = "";
-          addLog(`selection preview failed: ${photoId} - ${res.error}`, "warn");
+          if (!isCancelledError(res.error)) {
+            addLog(`selection preview failed: ${photoId} - ${res.error}`, "warn");
+          }
         }
+      }
+
+      async function warmRawSelectionPreview(photoId, path) {
+        if (!photoId || !isRawPath(path)) return;
+        const sizes = [1024, 4096];
+        for (const size of sizes) {
+          if (selectedPhotoId !== photoId) return;
+          if (selectedPreviewPhotoId === photoId && selectedPreviewSize >= size) {
+            continue;
+          }
+          try {
+            const res = await window.photoViewer.getThumbnail({ photoId, size });
+            if (selectedPhotoId !== photoId) return;
+            if (!res.ok) {
+              if (!isCancelledError(res.error)) {
+                addLog(`raw preview upgrade failed: ${photoId} - ${res.error}`, "warn");
+              }
+              continue;
+            }
+
+            const upgradedSrc = `data:${res.data.mimeType};base64,${res.data.base64}`;
+            const isBetter = size >= selectedPreviewSize || selectedPreviewSrc === placeholderThumb || !selectedPreviewSrc;
+            selectedPreviewPhotoId = photoId;
+            selectedPreviewSrc = upgradedSrc;
+            selectedPreviewFromCache = Boolean(res.data.fromCache);
+            selectedPreviewSize = size;
+            if (selectionPreview && isBetter && selectedPhotoId === photoId) {
+              selectionPreview.src = upgradedSrc;
+            }
+            if (viewerOpen && selectedPhotoId === photoId) {
+              const viewerImage = document.getElementById("viewerImage");
+              if (viewerImage) {
+                viewerImage.src = upgradedSrc;
+              }
+            }
+            logThumbnailCache("selection preview upgrade", photoId, size, selectedPreviewFromCache);
+          } catch (error) {
+            if (!isCancelledError(error?.message ?? String(error))) {
+              addLog(`raw preview upgrade error: ${photoId} - ${error?.message ?? String(error)}`, "warn");
+            }
+          }
+        }
+      }
+
+      async function scheduleRawSelectionPreviewUpgrade(photoId, path) {
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        return warmRawSelectionPreview(photoId, path);
       }
 
       function updateHistogram(img) {
@@ -1173,9 +1235,27 @@
         
         lastSelectedId = photoId;
         updateSelectionUI();
-        
+
+        const card = document.querySelector(`.photo[data-photo-id="${CSS.escape(photoId)}"]`);
+        const img = card?.querySelector("img");
+        if (img && img.dataset.loaded === "true" && img.src) {
+          selectedPreviewPhotoId = photoId;
+          selectedPreviewSrc = img.src;
+          selectedPreviewFromCache = true;
+          selectedPreviewSize = 384;
+          if (selectionPreview) selectionPreview.src = img.src;
+          logThumbnailCache("selection preview", photoId, 384, true);
+          const tempImg = new Image();
+          tempImg.onload = () => updateHistogram(tempImg);
+          tempImg.src = img.src;
+        } else {
+          void loadSelectionPreview(photoId);
+        }
+
         void loadExif(photoId);
-        void loadSelectionPreview(photoId);
+        if (isRawPath(path)) {
+          void scheduleRawSelectionPreviewUpgrade(photoId, path);
+        }
       }
 
       function handleMultiSelect(photoId, isShift, isCtrl) {

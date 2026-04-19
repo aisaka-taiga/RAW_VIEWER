@@ -67,7 +67,7 @@ type fakePreviewer struct {
 	calls int
 }
 
-func (p *fakePreviewer) GetPreviewBytes(ctx context.Context, path string) ([]byte, error) {
+func (p *fakePreviewer) GetPreviewBytes(ctx context.Context, path string, size int) ([]byte, error) {
 	p.calls++
 	return p.data, nil
 }

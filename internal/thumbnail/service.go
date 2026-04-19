@@ -27,7 +27,7 @@ type Service struct {
 	decoder      Decoder
 	exifToolPath string
 	previewer    interface {
-		GetPreviewBytes(context.Context, string) ([]byte, error)
+		GetPreviewBytes(context.Context, string, int) ([]byte, error)
 	}
 
 	// In-memory cache
@@ -109,7 +109,7 @@ func (s *Service) Get(ctx context.Context, path string, size int) (CacheEntry, [
 			data, width, height, mimeType, err = DecodeAndResize(path, size, s.decoder)
 		}
 	} else {
-		previewBytes, previewErr := s.loadRawPreviewBytes(ctx, path, info)
+		previewBytes, previewErr := s.loadRawPreviewBytes(ctx, path, info, size)
 		if previewErr == nil && len(previewBytes) > 0 {
 			data, width, height, mimeType, err = s.renderThumbnailFromPreviewBytes(path, size, previewBytes)
 			if err != nil && s.decoder != nil {
@@ -149,15 +149,15 @@ func (s *Service) WarmRaw(ctx context.Context, path string, sizes ...int) error 
 		return err
 	}
 
-	previewBytes, err := s.loadRawPreviewBytes(ctx, path, info)
-	if err != nil {
-		return err
-	}
-	if len(previewBytes) == 0 {
-		return fmt.Errorf("empty raw preview for %s", path)
-	}
-
 	for _, size := range normalizeWarmSizes(sizes...) {
+		previewBytes, err := s.loadRawPreviewBytes(ctx, path, info, size)
+		if err != nil {
+			return err
+		}
+		if len(previewBytes) == 0 {
+			return fmt.Errorf("empty raw preview for %s", path)
+		}
+
 		key := s.cache.Key(path, size, info.ModTime(), info.Size())
 		if _, ok, err := s.cache.Load(key); err != nil {
 			return err
@@ -182,18 +182,18 @@ func (s *Service) WarmRaw(ctx context.Context, path string, sizes ...int) error 
 	return nil
 }
 
-func (s *Service) loadRawPreviewBytes(ctx context.Context, path string, info os.FileInfo) ([]byte, error) {
+func (s *Service) loadRawPreviewBytes(ctx context.Context, path string, info os.FileInfo, size int) ([]byte, error) {
 	if s.previewer == nil {
 		return nil, fmt.Errorf("raw previewer unavailable for %s", path)
 	}
-	previewKey := s.cache.RawPreviewKey(path, info.ModTime(), info.Size())
+	previewKey := s.cache.RawPreviewKey(path, size, info.ModTime(), info.Size())
 	if data, ok, err := s.cache.Load(previewKey); err != nil {
 		return nil, err
 	} else if ok {
 		return data, nil
 	}
 
-	data, err := s.previewer.GetPreviewBytes(ctx, path)
+	data, err := s.previewer.GetPreviewBytes(ctx, path, size)
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +240,7 @@ func (s *Service) resolveOrientation(path string) int {
 
 func normalizeWarmSizes(sizes ...int) []int {
 	if len(sizes) == 0 {
-		return []int{384, 1024}
+		return []int{384, 1024, 4096}
 	}
 	seen := make(map[int]struct{}, len(sizes))
 	out := make([]int, 0, len(sizes))
@@ -255,7 +255,7 @@ func normalizeWarmSizes(sizes ...int) []int {
 		out = append(out, size)
 	}
 	if len(out) == 0 {
-		return []int{384, 1024}
+		return []int{384, 1024, 4096}
 	}
 	return out
 }
