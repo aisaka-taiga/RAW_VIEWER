@@ -1,0 +1,113 @@
+syntax = "proto3";
+
+package photoengine.v1;
+
+option go_package = "photo-viewer/gen;photoenginev1";
+
+service PhotoEngine {
+  rpc Health(HealthRequest) returns (HealthResponse);
+  rpc ScanFolder(ScanFolderRequest) returns (ScanFolderResponse);
+  rpc ScanFolderStream(ScanFolderRequest) returns (stream ScanFolderProgress);
+  rpc ListPhotos(ListPhotosRequest) returns (ListPhotosResponse);
+  rpc GetThumbnail(GetThumbnailRequest) returns (GetThumbnailResponse);
+  rpc GetMetadata(GetMetadataRequest) returns (GetMetadataResponse);
+  rpc DeletePhoto(DeletePhotoRequest) returns (DeletePhotoResponse);
+  rpc MoveToRejected(MoveToRejectedRequest) returns (MoveToRejectedResponse);
+  rpc PreloadNext(PreloadNextRequest) returns (PreloadNextResponse);
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  bool ok = 1;
+  string version = 2;
+}
+
+message ScanFolderRequest {
+  string folder_path = 1;
+}
+
+message ScanFolderResponse {
+  uint32 queued = 1;
+}
+
+message ScanFolderProgress {
+  uint32 scanned = 1;
+  uint32 total = 2;
+  PhotoItem photo = 3;
+}
+
+message ListPhotosRequest {
+  string folder_path = 1;
+  uint32 limit = 2;
+  uint32 offset = 3;
+  string sort_by = 4;
+  bool descending = 5;
+}
+
+message PhotoItem {
+  string id = 1;
+  string path = 2;
+  string file_name = 3;
+  string format = 4;
+  uint32 width = 5;
+  uint32 height = 6;
+  uint32 orientation = 7;
+  string captured_at = 8;
+}
+
+message ListPhotosResponse {
+  repeated PhotoItem items = 1;
+  uint64 total = 2;
+}
+
+message GetThumbnailRequest {
+  string photo_id = 1;
+  uint32 size = 2;
+}
+
+message GetThumbnailResponse {
+  bytes data = 1;
+  string mime_type = 2;
+  bool from_cache = 3;
+}
+
+message GetMetadataRequest {
+  string photo_id = 1;
+}
+
+message MetadataField {
+  string key = 1;
+  string value = 2;
+}
+
+message GetMetadataResponse {
+  string photo_id = 1;
+  repeated MetadataField fields = 2;
+}
+
+message DeletePhotoRequest {
+  string photo_id = 1;
+}
+
+message DeletePhotoResponse {
+  bool ok = 1;
+}
+
+message MoveToRejectedRequest {
+  string photo_id = 1;
+}
+
+message MoveToRejectedResponse {
+  bool ok = 1;
+  string new_path = 2;
+}
+
+message PreloadNextRequest {
+  string current_photo_id = 1;
+  uint32 count = 2;
+}
+
+message PreloadNextResponse {
+  uint32 queued = 1;
+}

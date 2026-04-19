@@ -1,0 +1,1726 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Photo Viewer - Adobe Bridge Style</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg-base: #0f1012;
+        --bg-panel: rgba(22, 24, 28, 0.65);
+        --bg-card: rgba(30, 33, 39, 0.5);
+        --text-main: #f0f3f6;
+        --text-muted: #8b95a5;
+        --accent: #3b82f6;
+        --accent-hover: #4f8cf6;
+        --border-color: rgba(255, 255, 255, 0.08);
+      }
+      
+      * { box-sizing: border-box; }
+      
+      body {
+        margin: 0;
+        font-family: 'Inter', system-ui, sans-serif;
+        background-color: var(--bg-base);
+        background-image: 
+          radial-gradient(ellipse at top left, rgba(59, 130, 246, 0.08), transparent 40%),
+          radial-gradient(ellipse at bottom right, rgba(139, 92, 246, 0.08), transparent 40%);
+        background-attachment: fixed;
+        color: var(--text-main);
+        overflow: hidden; /* Prevent body scroll */
+      }
+      
+      /* Glassmorphism utility */
+      .glass {
+        background: var(--bg-panel);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid var(--border-color);
+      }
+
+      .shell {
+        display: grid;
+        grid-template-rows: 56px 1fr 36px;
+        height: 100vh;
+      }
+      
+      /* Header */
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 24px;
+        border-bottom: 1px solid var(--border-color);
+        background: var(--bg-panel);
+        backdrop-filter: blur(12px);
+        z-index: 10;
+      }
+      
+      .brand {
+        font-size: 16px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .brand-icon {
+        width: 24px;
+        height: 24px;
+        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 14px;
+        font-weight: bold;
+      }
+
+      .header-right {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        font-size: 13px;
+      }
+
+      /* Main Layout */
+      main {
+        display: grid;
+        grid-template-columns: 280px 1fr 320px;
+        overflow: hidden;
+        min-height: 0;
+      }
+      
+      .sidebar {
+        border-right: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        padding: 20px;
+        gap: 24px;
+        min-height: 0;
+      }
+      
+      .right-panel {
+        border-left: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+        padding: 20px;
+        gap: 20px;
+        background: rgba(15, 16, 18, 0.4);
+        min-height: 0;
+      }
+      
+      .center-area {
+        display: flex;
+        flex-direction: column;
+        background: rgba(10, 11, 13, 0.7);
+        position: relative;
+        min-height: 0;
+      }
+
+      /* Sections & Titles */
+      .section-title {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+        font-weight: 600;
+        margin-bottom: 12px;
+      }
+
+      /* Forms & Controls */
+      input {
+        width: 100%;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        color: var(--text-main);
+        padding: 10px 12px;
+        font-family: inherit;
+        font-size: 13px;
+        transition: all 0.2s;
+        outline: none;
+      }
+      input:focus {
+        border-color: var(--accent);
+        background: rgba(255, 255, 255, 0.08);
+      }
+      
+      .btn {
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text-main);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 8px 14px;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+      .btn:hover:not(:disabled) {
+        background: rgba(255, 255, 255, 0.12);
+        border-color: rgba(255, 255, 255, 0.2);
+      }
+      .btn-primary {
+        background: var(--accent);
+        color: white;
+        border-color: transparent;
+      }
+      .btn-primary:hover:not(:disabled) {
+        background: var(--accent-hover);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+      }
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      /* Library tools */
+      .library-tools {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .toolbar-hstack {
+        display: flex;
+        gap: 8px;
+      }
+
+      .dropzone {
+        border: 2px dashed rgba(255, 255, 255, 0.12);
+        border-radius: 12px;
+        padding: 32px 20px;
+        text-align: center;
+        font-size: 13px;
+        color: var(--text-muted);
+        transition: all 0.2s;
+        background: rgba(255, 255, 255, 0.02);
+      }
+      .dropzone.active {
+        border-color: var(--accent);
+        background: rgba(59, 130, 246, 0.08);
+        color: var(--accent);
+      }
+
+      /* Main Grid */
+      .grid-toolbar {
+        padding: 16px 24px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: rgba(15, 16, 18, 0.8);
+        backdrop-filter: blur(8px);
+        z-index: 2;
+      }
+      .grid-title {
+        font-weight: 500;
+        font-size: 14px;
+      }
+      
+      .grid-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 24px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 20px;
+      }
+
+      /* Dialogs */
+      .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.85);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 5000;
+        backdrop-filter: blur(8px);
+      }
+      .modal-content {
+        background: var(--bg-surface);
+        width: 400px;
+        padding: 32px;
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+        box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+      }
+      .modal-title {
+        font-size: 20px;
+        font-weight: 600;
+        margin-bottom: 12px;
+      }
+      .modal-body {
+        font-size: 14px;
+        color: var(--text-muted);
+        line-height: 1.5;
+        margin-bottom: 24px;
+      }
+      .modal-footer {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+      }
+      .photo {
+        border-radius: 12px;
+        padding: 10px;
+        background: var(--bg-card);
+        border: 1px solid transparent;
+        /* Specific transitions to prevent lag during window resize */
+        transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), background 0.2s ease;
+        cursor: pointer;
+        position: relative;
+        user-select: none;
+        /* Containment for better layout performance with many items */
+        contain: layout style;
+        content-visibility: auto;
+        contain-intrinsic-size: 200px 240px;
+      }
+      .photo:hover {
+        background: rgba(255, 255, 255, 0.04);
+        transform: translateY(-2px);
+      }
+      .photo.entering {
+        animation: scaleIn 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      }
+      .photo.selected {
+        background: rgba(59, 130, 246, 0.08); /* Subtle blue tint */
+        border-color: var(--accent);
+        border-width: 1px;
+        box-shadow: 0 0 0 2px var(--accent), 0 8px 24px rgba(59, 130, 246, 0.3);
+        z-index: 10;
+      }
+      .photo.selected img {
+        box-shadow: 0 0 0 2px var(--accent);
+      }
+
+      .selection-marquee {
+        position: fixed;
+        border: 1px solid var(--accent);
+        background: rgba(59, 130, 246, 0.15);
+        pointer-events: none;
+        z-index: 1000;
+        display: none;
+      }
+      
+      .photo img {
+        width: 100%;
+        aspect-ratio: 3 / 2;
+        object-fit: cover;
+        border-radius: 8px;
+        background: #08090a;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+      }
+      
+      .photo-name {
+        font-size: 13px;
+        font-weight: 500;
+        margin-top: 12px;
+        margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        color: var(--text-main);
+      }
+      .photo-meta {
+        font-size: 11px;
+        color: var(--text-muted);
+        display: flex;
+        justify-content: space-between;
+      }
+
+      /* Selection Preview */
+      .preview-box {
+        aspect-ratio: 3 / 2;
+        border-radius: 12px;
+        overflow: hidden;
+        background: #050506;
+        border: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .preview-box img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain;
+        filter: brightness(1.2) contrast(1.05); /* Significant boost for better visibility */
+      }
+
+      /* Histogram */
+      .histogram-container {
+        width: 100%;
+        height: 80px;
+        background: rgba(0, 0, 0, 0.4);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        margin-bottom: 16px;
+        position: relative;
+        overflow: hidden;
+      }
+      #histogramCanvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .meta-dl {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px 16px;
+        font-size: 12px;
+      }
+      .meta-dl div {
+        display: contents;
+      }
+      .meta-dl strong {
+        color: var(--text-muted);
+        font-weight: 500;
+      }
+      .meta-dl span {
+        text-align: right;
+        color: var(--text-main);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      /* Footer & Logs */
+      footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0 24px;
+        font-size: 12px;
+        border-top: 1px solid var(--border-color);
+        background: var(--bg-panel);
+        color: var(--text-muted);
+      }
+
+      .log-panel {
+        position: fixed;
+        left: 20px;
+        bottom: 56px;
+        width: 400px;
+        height: 250px;
+        background: rgba(15, 16, 18, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+        display: flex;
+        flex-direction: column;
+        z-index: 40;
+        backdrop-filter: blur(20px);
+        overflow: hidden;
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(10px);
+        transition: all 0.2s;
+      }
+      .log-panel.show {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0);
+      }
+      .log-header {
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .log-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px 16px;
+        font-family: 'Consolas', 'Cascadia Code', monospace;
+        font-size: 11px;
+        line-height: 1.6;
+        color: #a1a1aa;
+      }
+      .log-item { margin-bottom: 6px; word-break: break-all; }
+      .log-time { color: var(--accent); margin-right: 8px; }
+
+      /* Fullscreen Viewer */
+      .viewer {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.95);
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.25s;
+        backdrop-filter: blur(8px);
+      }
+      .viewer.open {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      
+      .viewer-bar {
+        height: 64px;
+        padding: 0 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+        color: white;
+        position: absolute;
+        top: 0; left: 0; right: 0;
+        z-index: 101;
+      }
+      
+      .viewer-stage {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        cursor: grab;
+      }
+      .viewer-stage:active { cursor: grabbing; }
+      
+      .viewer-image {
+        max-width: 100vw;
+        max-height: 100vh;
+        object-fit: contain;
+        transform-origin: center center;
+        transition: transform 0.1s;
+        box-shadow: 0 0 100px rgba(0,0,0,0.5);
+        user-drag: none;
+        -webkit-user-drag: none;
+      }
+
+      .viewer-loader {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        gap: 16px;
+        z-index: 105;
+        pointer-events: none;
+      }
+      .viewer-loader .spinner {
+        width: 40px; height: 40px;
+        border: 3px solid rgba(255,255,255,0.1);
+        border-top: 3px solid var(--accent);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      .viewer-loader span {
+        color: white;
+        font-size: 13px;
+        font-weight: 500;
+        text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        letter-spacing: 0.5px;
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      /* Helpers */
+      .text-accent { color: var(--accent); }
+      .muted-text { color: var(--text-muted); }
+      
+      @keyframes scaleIn {
+        from { opacity: 0; transform: scale(0.9) translateY(10px); }
+        to { opacity: 1; transform: scale(1) translateY(0); }
+      }
+      
+      /* Scrollbars */
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 4px; }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header>
+        <div class="brand">
+          <div class="brand-icon">P</div>
+          PhotoBridge
+        </div>
+        <div class="header-right">
+          <div id="health" class="muted-text">Checking system...</div>
+          <button class="btn" id="toggleLogBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+            Logs
+          </button>
+        </div>
+      </header>
+      
+      <main>
+        <aside class="sidebar glass">
+          <div>
+            <div class="section-title">Source Library</div>
+            <div class="library-tools">
+              <input id="libraryRoot" placeholder="e.g. C:\workspace\photos" />
+              <div class="toolbar-hstack">
+                <button id="pickBtn" class="btn" style="flex:1">Browse...</button>
+                <button id="scanBtn" class="btn btn-primary" style="flex:1">Scan</button>
+              </div>
+            </div>
+          </div>
+          
+          <div>
+            <div class="section-title">Import</div>
+            <div id="dropzone" class="dropzone">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-bottom: 8px; opacity: 0.5;">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <br/>
+              Drag & Drop folders here
+            </div>
+            <div id="scanStatus" class="muted-text" style="font-size: 12px; margin-top: 12px; text-align: center;">Waiting for input</div>
+          </div>
+        </aside>
+        
+        <section class="center-area">
+          <div class="grid-toolbar">
+            <div class="grid-title">All Photos</div>
+            <div class="toolbar-hstack">
+              <!-- Placeholder for future view options -->
+              <span class="muted-text" style="font-size:12px;">Sorted by Capture Date</span>
+            </div>
+          </div>
+          <div class="grid-container" id="gridContainer">
+            <div class="grid" id="grid">
+              <div class="muted-text" style="grid-column: 1/-1; text-align: center; padding: 40px;">
+                No folder selected. Scan a directory to view photos.
+              </div>
+            </div>
+          </div>
+        </section>
+        
+        <aside class="right-panel glass">
+          <div>
+            <div class="section-title">Preview</div>
+            <div class="preview-box">
+              <img id="selectionPreview" alt="No image selected" style="opacity: 0.2" />
+            </div>
+          </div>
+          
+          <div>
+            <div class="section-title">Histogram</div>
+            <div class="histogram-container">
+              <canvas id="histogramCanvas"></canvas>
+            </div>
+          </div>
+
+          <div>
+            <div class="section-title">Metadata</div>
+            <div id="exifStatus" class="muted-text" style="font-size: 12px; margin-bottom: 12px;">Select a photo</div>
+            <div id="exifList" class="meta-dl">
+              <!-- Exif rows injected here -->
+            </div>
+          </div>
+        </aside>
+      </main>
+      
+      <footer>
+        <div id="footer">Waiting for gRPC backend...</div>
+        <div>PhotoBridge MVP</div>
+      </footer>
+      
+      <!-- Overlaid Panels -->
+      <div class="log-panel" id="logPanel">
+        <div class="log-header">
+          Diagnostic Logs
+          <button id="clearLogBtn" class="btn" style="padding: 4px 8px; font-size: 11px;">Clear</button>
+        </div>
+        <div id="logList" class="log-list"></div>
+      </div>
+      
+      <div id="viewer" class="viewer" aria-hidden="true">
+        <div class="viewer-bar">
+          <div id="viewerTitle" style="font-weight: 500; font-size: 14px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">Image Viewer</div>
+          <button id="closeViewerBtn" class="btn" style="background: rgba(255,255,255,0.1); border:none;">Close (Esc)</button>
+        </div>
+         <div class="viewer-stage" id="viewerStage">
+           <img id="viewerImage" class="viewer-image" alt="" />
+           <div id="viewerLoader" class="viewer-loader">
+             <div class="spinner"></div>
+             <span>Processing RAW...</span>
+           </div>
+         </div>
+      </div>
+    </div>
+    <div id="deleteModal" class="modal-overlay">
+      <div class="modal-content">
+        <div id="deleteModalTitle" class="modal-title">파일 삭제</div>
+        <div id="deleteModalBody" class="modal-body">선택한 파일을 삭제하시겠습니까?</div>
+        <div class="modal-footer">
+          <button id="cancelDeleteBtn" class="btn">취소</button>
+          <button id="confirmDeleteBtn" class="btn btn-primary" style="background: #ef4444;">삭제</button>
+        </div>
+      </div>
+    </div>
+    <div id="selectionMarquee" class="selection-marquee"></div>
+    <script>
+      const health = document.getElementById("health");
+      const exifStatus = document.getElementById("exifStatus");
+      const exifList = document.getElementById("exifList");
+      const selectionPreview = document.getElementById("selectionPreview");
+      const footer = document.getElementById("footer");
+      const logList = document.getElementById("logList");
+      let selectedPhotoId = "";
+      let selectedPhotoPath = "";
+      let viewerOpen = false;
+      let photoList = [];
+      let selectedIndex = -1;
+      const thumbnailWarmup = new Set();
+      let viewerScale = 1;
+      let viewerX = 0;
+      let viewerY = 0;
+      let viewerOrigin = "center center";
+      let viewerToken = 0;
+      const uiLogs = [];
+      const placeholderThumb = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(`
+        <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+          <rect width="512" height="512" fill="#1a2230"/>
+          <rect x="32" y="32" width="448" height="448" rx="28" fill="#253042"/>
+          <path d="M126 350l74-86 66 66 52-58 68 78H126z" fill="#6b7c93"/>
+          <circle cx="190" cy="176" r="28" fill="#6b7c93"/>
+        </svg>
+      `);
+
+      function addLog(message, level = "info") {
+        const stamp = new Date().toLocaleTimeString();
+        uiLogs.push({ stamp, message, level });
+        if (uiLogs.length > 200) uiLogs.shift();
+        if (!logList) return;
+        const el = document.createElement("div");
+        el.className = "log-item";
+        el.innerHTML = `<span class="log-time">[${stamp}]</span>${message}`;
+        if (level === "error") el.style.color = "#fca5a5";
+        if (level === "warn") el.style.color = "#fcd34d";
+        logList.appendChild(el);
+        logList.scrollTop = logList.scrollHeight;
+      }
+
+      const origLog = console.log.bind(console);
+      const origWarn = console.warn.bind(console);
+      const origError = console.error.bind(console);
+      console.log = (...args) => {
+        origLog(...args);
+        addLog(args.map((v) => (typeof v === "string" ? v : JSON.stringify(v))).join(" "));
+      };
+      console.warn = (...args) => {
+        origWarn(...args);
+        addLog(args.map((v) => (typeof v === "string" ? v : JSON.stringify(v))).join(" "), "warn");
+      };
+      console.error = (...args) => {
+        origError(...args);
+        addLog(args.map((v) => (typeof v === "string" ? v : JSON.stringify(v))).join(" "), "error");
+      };
+
+      async function checkBackend() {
+        try {
+          const result = await window.photoViewer.health();
+          if (result.ok) {
+            if (health) health.textContent = `Backend OK: ${JSON.stringify(result.data)}`;
+            addLog(`backend OK: ${JSON.stringify(result.data)}`);
+            footer.textContent = "gRPC connection established through Electron main process.";
+          } else {
+            if (health) health.textContent = `Backend error: ${result.error}`;
+            addLog(`backend error: ${result.error}`, "error");
+            footer.textContent = "Could not reach gRPC backend.";
+          }
+        } catch (error) {
+          if (health) health.textContent = `UI error: ${error?.message ?? String(error)}`;
+          addLog(`ui error: ${error?.message ?? String(error)}`, "error");
+          footer.textContent = "Electron preload or bridge call failed.";
+        }
+      }
+
+      function renderPhotos(items) {
+        photoList = items;
+        const grid = document.getElementById("grid");
+        grid.innerHTML = "";
+        if (!items.length) {
+          grid.innerHTML = '<div class="muted">DB에 사진이 없습니다. 스캔을 먼저 실행하세요.</div>';
+          return;
+        }
+        for (const item of items) {
+          appendPhotoCard(item, false);
+        }
+        void hydrateThumbnails(items);
+        addLog(`render photos: ${items.length}`);
+      }
+
+      function appendPhotoCard(item, animate = true) {
+        const grid = document.getElementById("grid");
+        if (grid.querySelector(`.photo[data-photo-id="${CSS.escape(item.id)}"]`)) return;
+        const el = document.createElement("div");
+        el.className = animate ? "photo entering" : "photo";
+        el.dataset.photoId = item.id;
+        el.dataset.photoPath = item.path;
+        el.innerHTML = `
+          <img alt="${item.fileName ?? item.path}" />
+          <div class="photo-name">${item.fileName ?? item.path}</div>
+          <div class="photo-meta">${item.format ?? ""} ${item.width ?? 0}x${item.height ?? 0}</div>
+        `;
+        el.addEventListener("click", (e) => selectPhoto(el, e));
+        el.addEventListener("dblclick", (e) => {
+          selectPhoto(el, e);
+          void openViewerByIndex(selectedIndex);
+        });
+        grid.appendChild(el);
+        if (animate) {
+          setTimeout(() => el.classList.remove("entering"), 200);
+        }
+      }
+
+      let selectedIds = new Set();
+      let lastSelectedIndex = -1;
+
+      function selectPhoto(card, event = null) {
+        const id = card.dataset.photoId;
+        const index = photoList.findIndex(p => p.id === id);
+
+        if (event && event.shiftKey && lastSelectedIndex !== -1) {
+          // Range selection
+          const start = Math.min(lastSelectedIndex, index);
+          const end = Math.max(lastSelectedIndex, index);
+          if (!event.ctrlKey) selectedIds.clear();
+          for (let i = start; i <= end; i++) {
+            selectedIds.add(photoList[i].id);
+          }
+        } else if (event && (event.ctrlKey || event.metaKey)) {
+          // Toggle item
+          if (selectedIds.has(id)) selectedIds.delete(id);
+          else selectedIds.add(id);
+          lastSelectedIndex = index;
+        } else {
+          // Single selection
+          selectedIds.clear();
+          selectedIds.add(id);
+          lastSelectedIndex = index;
+        }
+
+        updateSelectionUI();
+        
+        // Update primary selection for preview
+        if (selectedIds.has(id)) {
+          selectedPhotoId = id;
+          selectedPhotoPath = card.dataset.photoPath || "";
+          selectedIndex = index;
+          void loadExif(id);
+          void loadSelectionPreview(id);
+        }
+      }
+
+      function updateSelectionUI() {
+        document.querySelectorAll(".photo").forEach(el => {
+          if (selectedIds.has(el.dataset.photoId)) el.classList.add("selected");
+          else el.classList.remove("selected");
+        });
+      }
+
+      function isRawPath(filePath) {
+        return /\.(arw|cr3|nef|dng|rw2|heic|heif)$/i.test(filePath || "");
+      }
+
+      async function openViewer(filePath, title) {
+        const token = ++viewerToken;
+        const viewer = document.getElementById("viewer");
+        const image = document.getElementById("viewerImage");
+        const loader = document.getElementById("viewerLoader");
+        const viewerTitle = document.getElementById("viewerTitle");
+        
+        viewerTitle.textContent = title || filePath;
+        viewer.classList.add("open");
+        viewer.setAttribute("aria-hidden", "false");
+        viewerOpen = true;
+        viewerScale = 1;
+        viewerX = 0;
+        viewerY = 0;
+        viewerOrigin = "center center";
+        applyViewerScale();
+        warmAdjacentThumbnails(selectedIndex);
+        
+        // Cancel any ongoing large preview extractions for other photos
+        window.photoViewer.abortThumbnails();
+
+        if (isRawPath(filePath)) {
+          loader.style.display = "flex";
+          // If there's an existing image, we might want to keep it or dim it? 
+          // Let's dim it to show it's loading the full version
+          image.style.opacity = "0.3"; 
+
+          viewerTitle.textContent = `${title || filePath} (RAW preview)`;
+          try {
+            const res = await window.photoViewer.getThumbnail({ photoId: selectedPhotoId, size: 4096 });
+            if (token !== viewerToken) return;
+            if (res.ok) {
+              image.src = `data:${res.data.mimeType};base64,${res.data.base64}`;
+              image.style.opacity = "1";
+            }
+          } finally {
+            if (token === viewerToken) {
+              loader.style.display = "none";
+              image.style.opacity = "1";
+            }
+          }
+        } else {
+          loader.style.display = "none";
+          image.style.opacity = "1";
+          const normalized = encodeURI(filePath.replace(/\\/g, "/"));
+          image.src = `file:///${normalized}`;
+        }
+      }
+
+      function closeViewer() {
+        viewerToken += 1;
+        // Kill backend processing immediately
+        window.photoViewer.abortThumbnails();
+        
+        const viewer = document.getElementById("viewer");
+        const image = document.getElementById("viewerImage");
+        const loader = document.getElementById("viewerLoader");
+        
+        viewer.classList.remove("open");
+        viewer.setAttribute("aria-hidden", "true");
+        image.src = "";
+        loader.style.display = "none";
+        viewerOpen = false;
+        viewerScale = 1;
+        viewerX = 0;
+        viewerY = 0;
+        viewerOrigin = "center center";
+      }
+
+      function applyViewerScale() {
+        const image = document.getElementById("viewerImage");
+        image.style.transform = `translate(${viewerX}px, ${viewerY}px) scale(${viewerScale})`;
+        // Use center origin for consistent panning
+        image.style.transformOrigin = "center center";
+      }
+
+      // Optimized lazy loading with IntersectionObserver
+      const photoObserver = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const card = entry.target;
+            hydrateThumbnails(card);
+            // We keep observing if we want to support dynamic reloading, 
+            // but for now unobserve once triggered to save CPU.
+            photoObserver.unobserve(card);
+          }
+        });
+      }, {
+        root: document.getElementById("gridContainer"),
+        rootMargin: "400px", 
+        threshold: 0.01
+      });
+
+      async function hydrateThumbnails(card) {
+        const photoId = card.dataset.photoId;
+        const img = card.querySelector("img");
+        if (!photoId || !img || img.dataset.loaded) return;
+        
+        img.dataset.loaded = "loading";
+        const res = await window.photoViewer.getThumbnail({ photoId, size: 384 });
+        if (res.ok) {
+          img.src = `data:${res.data.mimeType};base64,${res.data.base64}`;
+          img.dataset.loaded = "true";
+          img.style.opacity = "1";
+        } else {
+          img.dataset.loaded = ""; 
+        }
+      }
+
+      function warmAdjacentThumbnails(index) {
+        // Pre-warm previews (4096) for next 3 and previous 1 photos
+        const range = [1, 2, 3, -1]; 
+        range.forEach(offset => {
+          const targetIdx = index + offset;
+          if (targetIdx >= 0 && targetIdx < photoList.length) {
+            const item = photoList[targetIdx];
+            if (!thumbnailWarmup.has(item.id + "_4096")) {
+                thumbnailWarmup.add(item.id + "_4096");
+                window.photoViewer.getThumbnail({ photoId: item.id, size: 4096 }).catch(() => {});
+            }
+          }
+        });
+      }
+
+      function zoomViewer(delta) {
+        viewerScale = Math.min(4, Math.max(0.25, +(viewerScale + delta).toFixed(2)));
+        applyViewerScale();
+        const viewerTitle = document.getElementById("viewerTitle");
+        viewerTitle.textContent = `${selectedPhotoPath || "원본 보기"}  (${Math.round(viewerScale * 100)}%)`;
+      }
+
+      function zoomToPoint(event, delta) {
+        const viewerStage = document.querySelector(".viewer-stage");
+        const rect = viewerStage.getBoundingClientRect();
+        const x = ((event.clientX - rect.left) / rect.width) * 100;
+        const y = ((event.clientY - rect.top) / rect.height) * 100;
+        viewerOrigin = `${x.toFixed(1)}% ${y.toFixed(1)}%`;
+        viewerScale = Math.min(4, Math.max(0.25, +(viewerScale + delta).toFixed(2)));
+        applyViewerScale();
+        const viewerTitle = document.getElementById("viewerTitle");
+        viewerTitle.textContent = `${selectedPhotoPath || "원본 보기"}  (${Math.round(viewerScale * 100)}%)`;
+      }
+
+      async function openViewerByIndex(index) {
+        if (index < 0 || index >= photoList.length) return;
+        const item = photoList[index];
+        selectedIndex = index;
+        selectedPhotoId = item.id || "";
+        selectedPhotoPath = item.path || "";
+        const card = document.querySelector(`.photo[data-photo-id="${CSS.escape(item.id)}"]`);
+        if (card) {
+          document.querySelectorAll(".photo.selected").forEach((node) => node.classList.remove("selected"));
+          card.classList.add("selected");
+        }
+        await openViewer(item.path, item.fileName ?? item.path);
+        
+        // Ensure the viewed photo is in the selection set so Delete/Shift+Delete works
+        selectedIds.clear();
+        selectedIds.add(item.id);
+        updateSelectionUI();
+        
+        warmAdjacentThumbnails(index);
+      }
+
+      async function loadPhotos() {
+        const libraryRoot = document.getElementById("libraryRoot").value.trim();
+        const res = await window.photoViewer.listPhotos({
+          folderPath: libraryRoot,
+          limit: 500,
+          offset: 0,
+          sortBy: "captured_at",
+          descending: true,
+        });
+        if (res.ok) {
+          renderPhotos(res.data.items ?? []);
+          thumbnailWarmup.clear();
+        } else {
+          document.getElementById("grid").innerHTML = `<div class="muted">사진 목록을 가져오지 못했습니다: ${res.error}</div>`;
+        }
+      }
+
+      async function loadExif(photoId) {
+        if (!photoId) {
+          exifStatus.textContent = "사진을 선택하세요.";
+          exifList.innerHTML = "";
+          return;
+        }
+        exifStatus.textContent = "EXIF 불러오는 중...";
+        const res = await window.photoViewer.getMetadata({ photoId });
+        if (!res.ok) {
+          exifStatus.textContent = `EXIF 로드 실패: ${res.error}`;
+          exifList.innerHTML = "";
+          return;
+        }
+        const rows = (res.data.fields ?? []).map((field) => `<div><strong>${field.key}</strong>: ${field.value}</div>`).join("");
+        exifStatus.textContent = "EXIF";
+        exifList.innerHTML = rows || "<div class='muted'>표시할 EXIF가 없습니다.</div>";
+      }
+
+      async function loadSelectionPreview(photoId) {
+        if (!selectionPreview) return;
+        if (!photoId) {
+          selectionPreview.src = placeholderThumb;
+          return;
+        }
+        selectionPreview.src = placeholderThumb;
+        const res = await window.photoViewer.getThumbnail({ photoId, size: 1024 });
+        if (res.ok) {
+          selectionPreview.src = `data:${res.data.mimeType};base64,${res.data.base64}`;
+          addLog(`selection preview loaded: ${photoId}`);
+          
+          // Histogram update
+          const tempImg = new Image();
+          tempImg.onload = () => updateHistogram(tempImg);
+          tempImg.src = selectionPreview.src;
+        } else {
+          selectionPreview.src = placeholderThumb;
+          addLog(`selection preview failed: ${photoId} - ${res.error}`, "warn");
+        }
+      }
+
+      function updateHistogram(img) {
+        const canvas = document.getElementById("histogramCanvas");
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d", { willReadFrequently: true });
+        
+        const procWidth = 128;
+        const procHeight = 128;
+        const offscreen = document.createElement("canvas");
+        offscreen.width = procWidth;
+        offscreen.height = procHeight;
+        const osCtx = offscreen.getContext("2d");
+        osCtx.drawImage(img, 0, 0, procWidth, procHeight);
+        
+        const imageData = osCtx.getImageData(0, 0, procWidth, procHeight);
+        const data = imageData.data;
+        
+        const r = new Uint32Array(256);
+        const g = new Uint32Array(256);
+        const b = new Uint32Array(256);
+        const l = new Uint32Array(256); 
+        
+        for (let i = 0; i < data.length; i += 4) {
+          const rv = data[i], gv = data[i+1], bv = data[i+2];
+          const lv = Math.round(0.299 * rv + 0.587 * gv + 0.114 * bv);
+          r[rv]++; g[gv]++; b[bv]++; l[lv]++;
+        }
+        
+        canvas.width = canvas.clientWidth * window.devicePixelRatio;
+        canvas.height = canvas.clientHeight * window.devicePixelRatio;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        const max = Math.max(...r, ...g, ...b, ...l);
+        const w = canvas.width, h = canvas.height;
+        
+        function drawChannel(chan, color, fill = false) {
+          ctx.beginPath();
+          ctx.moveTo(0, h);
+          for(let i=0; i<256; i++) {
+            const x = (i / 255) * w;
+            const y = h - (chan[i] / max) * h * 0.9;
+            ctx.lineTo(x, y);
+          }
+          if(fill) {
+            ctx.lineTo(w, h);
+            ctx.fillStyle = color;
+            ctx.fill();
+          } else {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          }
+        }
+
+        drawChannel(l, "rgba(255, 255, 255, 0.15)", true); // Luminosity fill
+        drawChannel(r, "#ef4444"); // Red
+        drawChannel(g, "#22c55e"); // Green
+        drawChannel(b, "#3b82f6"); // Blue
+      }
+
+      function updateSelectionUI() {
+        document.querySelectorAll(".photo").forEach(el => {
+          if (selectedIds.has(el.dataset.photoId)) {
+            el.classList.add("selected");
+          } else {
+            el.classList.remove("selected");
+          }
+        });
+      }
+
+      function selectPhoto(photoId, path) {
+        selectedIds.clear();
+        selectedIds.add(photoId);
+        selectedPhotoId = photoId;
+        selectedPhotoPath = path;
+        
+        lastSelectedId = photoId;
+        updateSelectionUI();
+        
+        void loadExif(photoId);
+        void loadSelectionPreview(photoId);
+      }
+
+      function handleMultiSelect(photoId, isShift, isCtrl) {
+        if (isCtrl) {
+          if (selectedIds.has(photoId)) {
+            selectedIds.delete(photoId);
+            if (selectedPhotoId === photoId) {
+              selectedPhotoId = "";
+              selectedPhotoPath = "";
+            }
+          } else {
+            selectedIds.add(photoId);
+            selectedPhotoId = photoId;
+            const card = document.querySelector(`.photo[data-photo-id="${CSS.escape(photoId)}"]`);
+            if (card) selectedPhotoPath = card.dataset.path;
+          }
+          lastSelectedId = photoId;
+        } else if (isShift && lastSelectedId) {
+          const cards = Array.from(document.querySelectorAll(".photo"));
+          const startIdx = cards.findIndex(c => c.dataset.photoId === lastSelectedId);
+          const endIdx = cards.findIndex(c => c.dataset.photoId === photoId);
+          
+          if (startIdx !== -1 && endIdx !== -1) {
+            const min = Math.min(startIdx, endIdx);
+            const max = Math.max(startIdx, endIdx);
+            selectedIds.clear();
+            for (let i = min; i <= max; i++) {
+              selectedIds.add(cards[i].dataset.photoId);
+            }
+          }
+          selectedPhotoId = photoId;
+          const card = document.querySelector(`.photo[data-photo-id="${CSS.escape(photoId)}"]`);
+          if (card) selectedPhotoPath = card.dataset.path;
+        }
+        
+        updateSelectionUI();
+        if (selectedPhotoId) {
+          void loadExif(selectedPhotoId);
+          void loadSelectionPreview(selectedPhotoId);
+        }
+      }
+
+      function appendPhotoCard(photo, isAppend = true) {
+        const grid = document.getElementById("grid");
+        const container = document.createElement("div");
+        container.className = "photo";
+        container.dataset.photoId = photo.id;
+        container.dataset.path = photo.path;
+        container.innerHTML = `
+          <div class="photo-check"></div>
+          <img src="${placeholderThumb}" style="opacity: 0.5; transition: opacity 0.3s;" />
+          <div class="photo-info">
+            <div class="photo-name">${photo.fileName}</div>
+          </div>
+        `;
+        container.onclick = (e) => {
+          if (e.ctrlKey || e.metaKey || e.shiftKey) {
+            handleMultiSelect(photo.id, e.shiftKey, e.ctrlKey || e.metaKey);
+          } else {
+            selectPhoto(photo.id, photo.path);
+          }
+        };
+        container.ondblclick = () => {
+          const index = photoList.findIndex(p => p.id === photo.id);
+          openViewerByIndex(index);
+        };
+        if (isAppend) grid.appendChild(container);
+        else grid.prepend(container);
+      }
+
+      async function hydrateThumbnails(items) {
+        const fetchThumb = async (card) => {
+          const photoId = card.dataset.photoId;
+          const img = card.querySelector("img");
+          if (!photoId || !img || img.dataset.loaded) return;
+          
+          img.dataset.loaded = "loading";
+          try {
+            const res = await window.photoViewer.getThumbnail({ photoId, size: 384 });
+            if (res.ok) {
+              img.src = `data:${res.data.mimeType};base64,${res.data.base64}`;
+              img.dataset.loaded = "true";
+              img.style.opacity = "1";
+            } else {
+              img.dataset.loaded = "";
+            }
+          } catch (e) {
+            img.dataset.loaded = "";
+          }
+        };
+
+        const cards = document.querySelectorAll(".photo");
+        for (const card of cards) {
+          const pid = card.dataset.photoId;
+          if (items.some(item => item.id === pid)) {
+            fetchThumb(card);
+          }
+        }
+      }
+
+      async function scanLibrary() {
+        const scanBtn = document.getElementById("scanBtn");
+        const scanStatus = document.getElementById("scanStatus");
+        const libraryRoot = document.getElementById("libraryRoot").value.trim();
+        if (!libraryRoot) {
+          scanStatus.textContent = "먼저 사진 폴더 경로를 입력하세요.";
+          return;
+        }
+        scanBtn.disabled = true;
+        addLog(`scan start: ${libraryRoot}`);
+        scanStatus.textContent = "라이브러리 스캔 중...";
+        const grid = document.getElementById("grid");
+        grid.innerHTML = "";
+        photoList = [];
+        selectedIndex = -1;
+        thumbnailWarmup.clear();
+        try {
+          window.photoViewer.onScanProgress((progress) => {
+            if (progress?.photo) {
+              photoList.push(progress.photo); // Crucial!
+              appendPhotoCard(progress.photo, true);
+              if (photoList.length <= 10 || photoList.length % 20 === 0) {
+                hydrateThumbnails(photoList.slice(-20));
+              }
+            }
+            scanStatus.textContent = `스캔 중: ${progress.scanned ?? 0}/${progress.total ?? 0}`;
+          });
+          const res = await window.photoViewer.scanFolderStream({ folderPath: libraryRoot });
+          if (res.ok) {
+            scanStatus.textContent = `스캔 완료: ${photoList.length}개 파일 처리`;
+            hydrateThumbnails(photoList);
+          } else {
+            scanStatus.textContent = `스캔 실패: ${res.error}`;
+          }
+        } finally {
+          scanBtn.disabled = false;
+        }
+      }
+
+      async function deleteSelectedPhotos(isReject = false) {
+        if (selectedIds.size === 0) return;
+        
+        const ids = Array.from(selectedIds);
+        const modal = document.getElementById("deleteModal");
+        const title = document.getElementById("deleteModalTitle");
+        const body = document.getElementById("deleteModalBody");
+        const confirmBtn = document.getElementById("confirmDeleteBtn");
+        const cancelBtn = document.getElementById("cancelDeleteBtn");
+
+        title.textContent = isReject ? "리젝트 (파일 이동)" : "파일 제거";
+        body.textContent = isReject 
+          ? `선택한 ${ids.length}개의 파일을 _rejected 폴더로 이동하시겠습니까?`
+          : `선택한 ${ids.length}개의 사진을 라이브러리 목록에서 제거하시겠습니까? (원본 파일은 유지됩니다)`;
+        confirmBtn.textContent = isReject ? "리젝트" : "제거";
+        confirmBtn.style.background = isReject ? "var(--accent)" : "#ef4444";
+
+        modal.style.display = "flex";
+
+        return new Promise((resolve) => {
+          const cleanup = () => {
+            modal.style.display = "none";
+            confirmBtn.onclick = null;
+            cancelBtn.onclick = null;
+          };
+
+          cancelBtn.onclick = () => {
+            cleanup();
+            resolve(false);
+          };
+
+          confirmBtn.onclick = async () => {
+            cleanup();
+            const scanStatus = document.getElementById("scanStatus");
+            const count = ids.length;
+            let success = 0;
+
+            for (const id of ids) {
+              const res = isReject 
+                ? await window.photoViewer.moveToRejected({ photoId: id })
+                : await window.photoViewer.deletePhoto({ photoId: id });
+              
+              if (res.ok) {
+                success++;
+                selectedIds.delete(id);
+                const idx = photoList.findIndex(p => p.id === id);
+                if (idx !== -1) photoList.splice(idx, 1);
+              }
+            }
+
+            renderPhotos(photoList);
+            closeViewer();
+            scanStatus.textContent = `${success}개의 파일이 처리되었습니다.`;
+            resolve(true);
+          };
+        });
+      }
+
+      function logDropDiagnostics(event) {
+        const dt = event.dataTransfer;
+        const summary = {
+          effectAllowed: dt?.effectAllowed,
+          dropEffect: dt?.dropEffect,
+          types: dt ? [...dt.types] : [],
+          fileCount: dt?.files?.length ?? 0,
+          itemCount: dt?.items?.length ?? 0,
+        };
+        console.log("[drop] summary", summary);
+        if (dt?.files) {
+          [...dt.files].forEach((file, index) => {
+            console.log("[drop] file", index, {
+              name: file.name,
+              type: file.type,
+              size: file.size,
+              path: file.path,
+              webkitRelativePath: file.webkitRelativePath,
+            });
+          });
+        }
+        if (dt?.items) {
+          [...dt.items].forEach((item, index) => {
+            console.log("[drop] item", index, {
+              kind: item.kind,
+              type: item.type,
+              asFile: item.getAsFile ? item.getAsFile() : null,
+              hasWebkitEntry: Boolean(item.webkitGetAsEntry),
+            });
+            try {
+              const entry = item.webkitGetAsEntry?.();
+              if (entry) {
+                console.log("[drop] entry", index, {
+                  isFile: entry.isFile,
+                  isDirectory: entry.isDirectory,
+                  name: entry.name,
+                  fullPath: entry.fullPath,
+                });
+              }
+            } catch (error) {
+              console.log("[drop] entry error", index, String(error));
+            }
+          });
+        }
+        const uriList = dt?.getData?.("text/uri-list") || "";
+        const plainText = dt?.getData?.("text/plain") || "";
+        console.log("[drop] uri-list", uriList);
+        console.log("[drop] plain-text", plainText);
+      }
+
+      async function chooseFolder() {
+        const scanStatus = document.getElementById("scanStatus");
+        const res = await window.photoViewer.chooseFolder();
+        if (res.ok && res.data?.path) {
+          localStorage.setItem("photoViewer.libraryRoot", res.data.path);
+          document.getElementById("libraryRoot").value = res.data.path;
+          scanStatus.textContent = `폴더 선택됨: ${res.data.path}`;
+        } else if (!res.canceled) {
+          scanStatus.textContent = "폴더 선택에 실패했습니다.";
+        }
+      }
+
+      function setupDragAndDrop() {
+        const dropzone = document.getElementById("dropzone");
+        const libraryRoot = document.getElementById("libraryRoot");
+        const scanStatus = document.getElementById("scanStatus");
+
+        const stop = (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        };
+
+        const readEntryPath = async (entry) => {
+          if (!entry) return "";
+          if (entry.isFile) {
+            return await new Promise((resolve) => entry.file((file) => resolve(file?.path || "")));
+          }
+          if (entry.isDirectory) {
+            const reader = entry.createReader();
+            while (true) {
+              const entries = await new Promise((resolve) => reader.readEntries((items) => resolve(items || [])));
+              if (!entries.length) break;
+              for (const child of entries) {
+                const path = await readEntryPath(child);
+                if (path) return path;
+              }
+            }
+          }
+          return "";
+        };
+
+        const normalizeToFolder = (candidate) => {
+          if (!candidate) return "";
+          if (candidate.endsWith("\\") || candidate.endsWith("/")) return candidate.replace(/[\\/]+$/, "");
+          return candidate.replace(/[\\/][^\\/]+$/, "");
+        };
+
+        const resolveDroppedPath = async (event) => {
+          const files = [...(event.dataTransfer?.files ?? [])];
+          const items = [...(event.dataTransfer?.items ?? [])];
+          const uriList = event.dataTransfer?.getData?.("text/uri-list") || "";
+          const plainText = event.dataTransfer?.getData?.("text/plain") || "";
+
+          if (files.length && files[0].path) {
+            return files[0].path;
+          }
+
+          const fromUri = (text) => {
+            if (!text) return "";
+            const first = text.split(/\r?\n/).find((line) => line && !line.startsWith("#")) || "";
+            if (!first.startsWith("file://")) return "";
+            try {
+              const url = new URL(first);
+              let pathname = decodeURIComponent(url.pathname || "");
+              if (/^\/[A-Za-z]:/.test(pathname)) pathname = pathname.slice(1);
+              return pathname.replace(/\//g, "\\");
+            } catch {
+              return "";
+            }
+          };
+
+          const uriPath = fromUri(uriList) || fromUri(plainText);
+          if (uriPath) {
+            return uriPath;
+          }
+
+          for (const item of items) {
+            if (item.kind !== "file") continue;
+            const file = item.getAsFile?.();
+            if (file && file.path) return file.path;
+            if (item.webkitGetAsEntry) {
+              const entryPath = await readEntryPath(item.webkitGetAsEntry());
+              if (entryPath) return entryPath;
+            }
+          }
+
+          return "";
+        };
+
+        const handleDrop = async (event) => {
+          stop(event);
+          dropzone.classList.remove("active");
+          logDropDiagnostics(event);
+          const files = [...(event.dataTransfer?.files ?? [])];
+          const items = [...(event.dataTransfer?.items ?? [])];
+          scanStatus.textContent = `드랍 감지: files=${files.length}, items=${items.length}`;
+
+          let chosenPath = await resolveDroppedPath(event);
+          chosenPath = normalizeToFolder(chosenPath);
+
+          if (!chosenPath) {
+            scanStatus.textContent = "드랍 경로를 읽지 못했습니다. 이미지 파일이나 폴더를 다시 시도해 주세요.";
+            return;
+          }
+
+          localStorage.setItem("photoViewer.libraryRoot", chosenPath);
+          libraryRoot.value = chosenPath;
+          scanStatus.textContent = `경로 추가됨: ${chosenPath}`;
+          await scanLibrary();
+        };
+
+        window.addEventListener("dragenter", stop);
+        window.addEventListener("dragover", (event) => {
+          stop(event);
+          dropzone.classList.add("active");
+        });
+        window.addEventListener("dragleave", (event) => {
+          stop(event);
+          dropzone.classList.remove("active");
+        });
+        dropzone.addEventListener("dragenter", stop);
+        dropzone.addEventListener("dragover", (event) => {
+          stop(event);
+          dropzone.classList.add("active");
+        });
+        dropzone.addEventListener("dragleave", (event) => {
+          stop(event);
+          dropzone.classList.remove("active");
+        });
+        window.addEventListener("drop", (event) => void handleDrop(event));
+        dropzone.addEventListener("drop", (event) => void handleDrop(event));
+      }
+
+      function setupMarqueeSelection() {
+        const container = document.querySelector(".grid-container");
+        const marquee = document.getElementById("selectionMarquee");
+        let startX, startY;
+        let isDragging = false;
+
+        container.addEventListener("mousedown", (e) => {
+          if (e.target.closest(".photo") || e.button !== 0) return;
+          startX = e.clientX;
+          startY = e.clientY;
+          isDragging = true;
+          if (!e.ctrlKey) selectedIds.clear();
+          updateSelectionUI();
+        });
+
+        window.addEventListener("mousemove", (e) => {
+          if (!isDragging) return;
+          const currentX = e.clientX;
+          const currentY = e.clientY;
+
+          const left = Math.min(startX, currentX);
+          const top = Math.min(startY, currentY);
+          const width = Math.abs(startX - currentX);
+          const height = Math.abs(startY - currentY);
+
+          marquee.style.display = "block";
+          marquee.style.left = `${left}px`;
+          marquee.style.top = `${top}px`;
+          marquee.style.width = `${width}px`;
+          marquee.style.height = `${height}px`;
+
+          // Select cards inside bounds
+          const cards = document.querySelectorAll(".photo");
+          const marqueeRect = marquee.getBoundingClientRect();
+
+          cards.forEach(card => {
+            const cardRect = card.getBoundingClientRect();
+            const isOverlap = !(marqueeRect.right < cardRect.left || 
+                                marqueeRect.left > cardRect.right || 
+                                marqueeRect.bottom < cardRect.top || 
+                                marqueeRect.top > cardRect.bottom);
+            
+            if (isOverlap) {
+              selectedIds.add(card.dataset.photoId);
+            } else if (!e.ctrlKey) {
+              // Only remove if not in additive mode
+              selectedIds.delete(card.dataset.photoId);
+            }
+          });
+          updateSelectionUI();
+        });
+
+        window.addEventListener("mouseup", () => {
+          isDragging = false;
+          marquee.style.display = "none";
+          if (selectedIds.size > 0) {
+            const lastId = Array.from(selectedIds).pop();
+            const card = document.querySelector(`.photo[data-photo-id="${CSS.escape(lastId)}"]`);
+            if (card) {
+                selectedPhotoId = lastId;
+                selectedPhotoPath = card.dataset.photoPath;
+                void loadExif(lastId);
+                void loadSelectionPreview(lastId);
+            }
+          }
+        });
+      }
+
+      window.addEventListener("DOMContentLoaded", () => {
+        setupMarqueeSelection();
+        document.getElementById("pickBtn").addEventListener("click", chooseFolder);
+        document.getElementById("scanBtn").addEventListener("click", scanLibrary);
+        document.getElementById("clearLogBtn").addEventListener("click", () => {
+          if (logList) logList.innerHTML = "";
+          uiLogs.length = 0;
+        });
+        document.getElementById("closeViewerBtn").addEventListener("click", closeViewer);
+
+        const vStage = document.getElementById("viewerStage");
+        let isPanning = false;
+        let lastPanX, lastPanY;
+
+        vStage.addEventListener("mousedown", (e) => {
+          if (!viewerOpen || e.button !== 0) return;
+          e.preventDefault();
+          isPanning = true;
+          lastPanX = e.clientX;
+          lastPanY = e.clientY;
+          vStage.style.cursor = "grabbing";
+        });
+
+        window.addEventListener("mousemove", (e) => {
+          if (!isPanning) return;
+          const dx = e.clientX - lastPanX;
+          const dy = e.clientY - lastPanY;
+          viewerX += dx;
+          viewerY += dy;
+          lastPanX = e.clientX;
+          lastPanY = e.clientY;
+          applyViewerScale();
+        });
+
+        window.addEventListener("mouseup", () => {
+          isPanning = false;
+          vStage.style.cursor = "";
+        });
+
+        vStage.addEventListener("wheel", (e) => {
+          if (!viewerOpen) return;
+          e.preventDefault();
+          const delta = e.deltaY > 0 ? -0.1 : 0.1;
+          zoomViewer(delta);
+        }, { passive: false });
+
+        document.getElementById("viewerImage").addEventListener("dblclick", (event) => {
+          if (!viewerOpen) return;
+          event.preventDefault();
+          zoomToPoint(event, 0.5);
+        });
+        document.getElementById("viewer").addEventListener("click", (event) => {
+          if (event.target.id === "viewer") closeViewer();
+        });
+        window.addEventListener("keydown", (event) => {
+          if (event.ctrlKey && event.key === "0") {
+            if (viewerOpen) {
+              event.preventDefault();
+              viewerScale = 1;
+              applyViewerScale();
+              const viewerTitle = document.getElementById("viewerTitle");
+              viewerTitle.textContent = `${selectedPhotoPath || "원본 보기"}  (100%)`;
+            }
+            return;
+          }
+          if (event.ctrlKey && (event.key === "=" || event.key === "+" || event.code === "Equal")) {
+            event.preventDefault();
+            if (viewerOpen) zoomViewer(0.1);
+            return;
+          }
+          if (event.ctrlKey && (event.key === "-" || event.code === "Minus")) {
+            if (viewerOpen) {
+              event.preventDefault();
+              zoomViewer(-0.1);
+            }
+            return;
+          }
+          if (event.code === "Space") {
+            event.preventDefault();
+            if (viewerOpen) {
+              closeViewer();
+            } else if (selectedPhotoPath) {
+              void openViewer(selectedPhotoPath, selectedPhotoPath);
+            }
+          }
+          if (event.code === "ArrowRight" && photoList.length) {
+            event.preventDefault();
+            const next = selectedIndex < 0 ? 0 : Math.min(selectedIndex + 1, photoList.length - 1);
+            void openViewerByIndex(next);
+          }
+          if (event.code === "ArrowLeft" && photoList.length) {
+            event.preventDefault();
+            const prev = selectedIndex < 0 ? 0 : Math.max(selectedIndex - 1, 0);
+            void openViewerByIndex(prev);
+          }
+          if (event.key === "Delete" || event.code === "Delete") {
+            event.preventDefault();
+            const isReject = event.shiftKey;
+            addLog(`Delete triggered: isReject=${isReject}, selectedCount=${selectedIds.size}`);
+            void deleteSelectedPhotos(isReject);
+          }
+          if (event.code === "Escape") {
+            closeViewer();
+          }
+        });
+        const savedRoot = localStorage.getItem("photoViewer.libraryRoot");
+        if (savedRoot) {
+          document.getElementById("libraryRoot").value = savedRoot;
+        }
+        setupDragAndDrop();
+      });
+      window.addEventListener("DOMContentLoaded", checkBackend);
+      window.addEventListener("DOMContentLoaded", loadPhotos);
+      window.addEventListener("DOMContentLoaded", () => {
+        const toggleBtn = document.getElementById("toggleLogBtn");
+        const panel = document.getElementById("logPanel");
+        if(toggleBtn && panel) {
+          toggleBtn.addEventListener("click", () => {
+            panel.classList.toggle("show");
+          });
+        }
+      });
+    </script>
+  </body>
+</html>

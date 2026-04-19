@@ -1,0 +1,13 @@
+# test log
+getenv GOTMPDIR
+open C:\Users\KURISU\AppData\Local\Temp\TestCacheRoundTrip3149167018\001\sample.arw
+stat C:\Users\KURISU\AppData\Local\Temp\TestCacheRoundTrip3149167018\001\sample.arw
+open C:\Users\KURISU\AppData\Local\Temp\TestCacheRoundTrip3149167018\001\28c56d4cc28f2d276f89b447436a7ec49a2fe837.jpg
+stat C:\Users\KURISU\AppData\Local\Temp\TestCacheRoundTrip3149167018\001
+open C:\Users\KURISU\AppData\Local\Temp\TestCacheRoundTrip3149167018\001\28c56d4cc28f2d276f89b447436a7ec49a2fe837.jpg
+stat C:\Users\KURISU\AppData\Local\Temp\TestCacheRoundTrip3149167018\001\sample.arw
+open C:\Users\KURISU\AppData\Local\Temp\TestCacheRoundTrip3149167018\001\28c56d4cc28f2d276f89b447436a7ec49a2fe837.jpg
+open C:\Users\KURISU\AppData\Local\Temp
+getenv GOTMPDIR
+open C:\Users\KURISU\AppData\Local\Temp\TestDecodeAndResizeProducesJpeg3176182690\001\x.nef
+open C:\Users\KURISU\AppData\Local\Temp

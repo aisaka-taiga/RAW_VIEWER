@@ -1,0 +1,6 @@
+./cache.go
+./exiftool.go
+./raw_decoder.go
+./resize.go
+./service.go
+./types.go
